@@ -1,0 +1,8 @@
+{
+  "name": "default",
+  "displayName": "Default",
+  "description": "Default dark theme",
+  "baseTheme": "black",
+  "customCss": "custom.css",
+  "assets": []
+}
