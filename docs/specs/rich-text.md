@@ -92,6 +92,7 @@ Both block and inline elements are allowed (see full lists below).
 | `<th>` | Header cell | `colspan`, `rowspan`, `data-align` |
 | `<td>` | Data cell | `colspan`, `rowspan`, `data-align` |
 | `<hr>` | Horizontal rule | — |
+| `<svg>` | Inline SVG graphic | See [SVG Allowlist](#svg-allowlist) below |
 
 > **Note:** `<h1>` and `<h2>` are reserved for slide layout templates and must not appear in any content field.
 
@@ -257,6 +258,87 @@ The system prompt instructs the LLM to follow this decision tree when applying c
    → Ask the user: *"Should I use the theme's accent color, or did you have a specific color in mind?"*
 
 **The LLM must never choose a hex color on its own judgment.** Using hex without an explicit user instruction undermines theme consistency and risks color overuse.
+
+---
+
+## SVG Allowlist
+
+`<svg>` is a block element permitted in `body`, `leftCol`, `rightCol`, and `notes`. It is **not** permitted in `title` or `subtitle`.
+
+### Allowed SVG Elements
+
+| Element | Purpose |
+|---------|---------|
+| `<svg>` | Root element |
+| `<g>` | Group |
+| `<defs>` | Reusable definitions |
+| `<symbol>` | Reusable symbol |
+| `<use>` | Reference to `<symbol>` or other element |
+| `<path>` | Arbitrary path |
+| `<rect>` | Rectangle |
+| `<circle>` | Circle |
+| `<ellipse>` | Ellipse |
+| `<line>` | Line segment |
+| `<polyline>` | Open polygon |
+| `<polygon>` | Closed polygon |
+| `<text>` | SVG text |
+| `<tspan>` | Text span within `<text>` |
+| `<linearGradient>` | Linear gradient definition |
+| `<radialGradient>` | Radial gradient definition |
+| `<stop>` | Gradient stop |
+| `<clipPath>` | Clipping path definition |
+| `<mask>` | Mask definition |
+| `<image>` | Embedded image (see src rules below) |
+| `<animate>` | Property animation |
+| `<animateTransform>` | Transform animation |
+| `<animateMotion>` | Motion path animation |
+
+**Always stripped inside SVG:** `<script>`, `<foreignObject>`, `on*` event handler attributes.
+
+### Allowed SVG Attributes
+
+**Structural / root:**
+`xmlns`, `xmlns:xlink`, `viewBox`, `preserveAspectRatio`, `width`, `height`, `x`, `y`
+
+**Shape geometry:**
+`d`, `cx`, `cy`, `r`, `rx`, `ry`, `x1`, `y1`, `x2`, `y2`, `points`
+
+**Presentation:**
+`fill`, `fill-opacity`, `fill-rule`, `stroke`, `stroke-width`, `stroke-dasharray`, `stroke-dashoffset`, `stroke-linecap`, `stroke-linejoin`, `stroke-miterlimit`, `stroke-opacity`, `opacity`, `color`
+
+**Text:**
+`text-anchor`, `dominant-baseline`, `font-family`, `font-size`, `font-weight`, `font-style`, `letter-spacing`, `word-spacing`
+
+**Transform and layout:**
+`transform`, `clip-path`, `mask`, `clip-rule`
+
+**Reference and identity:**
+`id` *(allowed within SVG elements for `<use>` references, despite the global `id` ban)*, `href`, `xlink:href`
+
+**Gradient:**
+`gradientUnits`, `gradientTransform`, `spreadMethod`, `offset`, `stop-color`, `stop-opacity`, `fx`, `fy`
+
+**Clip / mask:**
+`clipPathUnits`
+
+**Animation:**
+`attributeName`, `from`, `to`, `by`, `dur`, `repeatCount`, `values`, `keyTimes`, `keySplines`, `calcMode`, `additive`, `accumulate`, `begin`, `end`, `type`, `path`
+
+### `<image>` `href` Rules (within SVG)
+
+Same rules as `<img src>` in the HTML subset:
+- `http://` / `https://` — passed through
+- Local file paths — converted to base64 data URL
+- `data:` — passed through
+
+### LLM Instructions for SVG
+
+- Write SVG directly into content fields (`body`, `leftCol`, `rightCol`) — no separate tool is needed
+- Always include `xmlns="http://www.w3.org/2000/svg"`, `viewBox`, `width`, and `height` on the root `<svg>` element
+- Use `width="100%"` for full-width SVGs within a slide; specify explicit pixel dimensions for icons and decorative elements
+- Keep generated SVGs legible at slide size — avoid dense detail that shrinks to illegibility
+- For a full-slide SVG, use the `blank` or `content` layout and place the SVG in `body`
+- The `image` layout's `imageUrl` is for raster images and external URLs only; do not place SVG markup in `imageUrl`
 
 ---
 

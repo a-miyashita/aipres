@@ -10,6 +10,7 @@ import { runToolUseLoop } from '../llm/dispatcher.js';
 import { writeHtml } from '../renderer/html.js';
 import { logger } from '../utils/logger.js';
 import type { Message } from '../llm/provider.js';
+import { resolveImageRefs, buildMultimodalMessage } from './image-resolver.js';
 
 function divider(label: string, color: (s: string) => string): string {
   const width = process.stdout.columns || 80;
@@ -135,7 +136,12 @@ export async function runChat(): Promise<void> {
         }
 
         // Normal message — send to LLM
-        messages.push({ role: 'user', content: input });
+        const imageRefs = await resolveImageRefs(input, process.cwd());
+        if (imageRefs.length > 0) {
+          messages.push({ role: 'user', content: buildMultimodalMessage(input, imageRefs) });
+        } else {
+          messages.push({ role: 'user', content: input });
+        }
 
         const spinner = ora({ text: chalk.dim('Thinking...'), spinner: 'dots', discardStdin: false }).start();
 

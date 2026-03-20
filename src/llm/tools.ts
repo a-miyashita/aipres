@@ -23,10 +23,10 @@ export const TOOLS: Tool[] = [
         },
         title: { type: 'string', description: 'Slide title. May contain inline HTML elements only (no block elements).' },
         subtitle: { type: 'string', description: 'Slide subtitle. May contain inline HTML elements only (no block elements).' },
-        body: { type: 'string', description: 'Slide body content as an HTML fragment. Use allowed block and inline elements only.' },
-        leftCol: { type: 'string', description: 'Left column content as an HTML fragment (for two-column layout).' },
-        rightCol: { type: 'string', description: 'Right column content as an HTML fragment (for two-column layout).' },
-        imageUrl: { type: 'string', description: 'Image URL or path (for image layout)' },
+        body: { type: 'string', description: 'Slide body content as an HTML fragment. Supports block elements, inline elements, and <svg> for generated vector graphics.' },
+        leftCol: { type: 'string', description: 'Left column content as an HTML fragment (for two-column layout). Supports <svg>.' },
+        rightCol: { type: 'string', description: 'Right column content as an HTML fragment (for two-column layout). Supports <svg>.' },
+        imageUrl: { type: 'string', description: 'URL or local file path to a raster or external image (for image layout). Do not place SVG markup here — use body with <svg> instead.' },
         notes: { type: 'string', description: 'Speaker notes as an HTML fragment.' },
         insertAt: {
           type: 'number',
@@ -186,5 +186,25 @@ a specific brand color or color code. Never choose hex on your own.
 If the right color is unclear, ask the user.
 
 Always write well-formed HTML. Void elements (<br>, <hr>, <img>) must be
-self-closed. Do not leave unclosed tags.`;
+self-closed. Do not leave unclosed tags.
+
+## Images
+
+### Specified images (user-provided)
+When the user's message contains [Image resolved: /path/to/file (mime)] annotations:
+- You can see the image content — use it to understand layout, colors, and structure.
+- To embed the image in a slide: use the resolved path in imageUrl (image layout, raster files only) or <img src="/path/to/file" alt="..."> (inline in body).
+- To use the image as a design reference only (e.g. "このラフをもとに作って"): read its visual content and generate slides accordingly without embedding the original file, unless the user explicitly asks to include it.
+
+Layout selection for raster images:
+- imageUrl + image layout → full-slide image
+- <img> inline in body/leftCol/rightCol → image alongside text
+
+### Generated SVG
+Write SVG markup directly into body, leftCol, or rightCol — no special tool is needed.
+- Always include xmlns="http://www.w3.org/2000/svg", viewBox, width, and height on the root <svg> element.
+- Use width="100%" for full-width diagrams; use explicit pixel dimensions for icons and decorations.
+- For a full-slide SVG: use blank layout and place the SVG in body.
+- Do not put SVG markup in imageUrl — that field is for raster images and URLs only.
+- Keep SVGs simple and legible at slide dimensions.`;
 }
