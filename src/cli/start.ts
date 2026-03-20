@@ -16,7 +16,7 @@ export async function runStart(opts: { port?: number } = {}): Promise<void> {
     logger.success(`Preview server running at http://localhost:${port}`);
   });
 
-  startWatcher();
+  const watcher = startWatcher();
 
   if (config.preview.autoOpen) {
     const { default: open } = await import('open');
@@ -24,4 +24,7 @@ export async function runStart(opts: { port?: number } = {}): Promise<void> {
   }
 
   await runChat();
+
+  await watcher.close();
+  server.close();
 }

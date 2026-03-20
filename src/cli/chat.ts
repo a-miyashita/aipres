@@ -167,7 +167,6 @@ export async function runChat(): Promise<void> {
     });
 
     rl.on('SIGINT', () => {
-      console.log(chalk.dim('\nSession ended. Slides saved.'));
       rl.close();
     });
 
