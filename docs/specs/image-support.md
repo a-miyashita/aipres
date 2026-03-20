@@ -244,7 +244,23 @@ function buildMultimodalMessage(original: string, refs: ImageRef[]): ContentBloc
 
 ---
 
-## 8. Summary of Changes
+## 8. Theme CSS Image Inlining
+
+CSS files loaded from custom themes (`customCss` field in `theme.json`) may contain relative `url(...)` references (e.g., `background-image: url('./bg.png')`).
+
+Because theme CSS is inlined into the generated HTML `<style>` block, relative paths would resolve against the HTML file's location — not the theme directory — causing broken images.
+
+**Requirement:** When loading a theme's custom CSS, all relative `url(...)` references must be replaced with base64 data URLs before inlining.
+
+**Rules:**
+- Only relative paths are processed (paths not starting with `data:`, `http:`, `https:`, or `//`)
+- Paths are resolved relative to the theme directory (`~/.aipres/themes/<name>/`)
+- If a referenced file cannot be read, the original `url(...)` is left unchanged
+- Implemented in `src/renderer/assets.ts` (`loadThemeCss`)
+
+---
+
+## 9. Summary of Changes
 
 | Area | Change |
 |------|--------|
