@@ -5,12 +5,18 @@ export type SlideLayout = 'title' | 'content' | 'two-column' | 'image' | 'blank'
 export interface Slide {
   id: string;
   layout: SlideLayout;
+  /** Slide title. May contain inline HTML elements only (no block elements). */
   title?: string;
+  /** Slide subtitle. May contain inline HTML elements only (no block elements). */
   subtitle?: string;
+  /** Slide body content as an HTML fragment. Use allowed block and inline elements only. */
   body?: string;
+  /** Left column content as an HTML fragment (for two-column layout). */
   leftCol?: string;
+  /** Right column content as an HTML fragment (for two-column layout). */
   rightCol?: string;
   imageUrl?: string;
+  /** Speaker notes as an HTML fragment. */
   notes?: string;
 }
 
@@ -37,6 +43,14 @@ export interface ThemeDefinition {
   baseTheme: string;
   customCss: string;
   assets: string[];
+  palette?: {
+    accent: string;
+    muted: string;
+    danger: string;
+    success: string;
+    warning: string;
+    info: string;
+  };
 }
 
 export interface Config {

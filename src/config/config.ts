@@ -7,7 +7,7 @@ import { getApiKey, setApiKey } from './keychain.js';
 
 export const DEFAULT_CONFIG: Config = {
   llm: {
-    model: 'claude-opus-4-5',
+    model: 'claude-sonnet-4-5',
     language: 'ja',
   },
   preview: {

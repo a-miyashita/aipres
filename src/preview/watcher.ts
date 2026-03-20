@@ -2,7 +2,7 @@ import chokidar from 'chokidar';
 import { getStatePath, loadState } from '../model/state.js';
 import { broadcast, updateServerModel } from './server.js';
 
-export function startWatcher(): void {
+export function startWatcher(): import('chokidar').FSWatcher {
   const statePath = getStatePath();
 
   const watcher = chokidar.watch(statePath, {
@@ -23,4 +23,6 @@ export function startWatcher(): void {
       // Ignore errors during hot reload
     }
   });
+
+  return watcher;
 }

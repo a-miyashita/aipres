@@ -21,13 +21,13 @@ export const TOOLS: Tool[] = [
           enum: ['title', 'content', 'two-column', 'image', 'blank'],
           description: 'The layout type for the slide',
         },
-        title: { type: 'string', description: 'Slide title' },
-        subtitle: { type: 'string', description: 'Slide subtitle (for title layout)' },
-        body: { type: 'string', description: 'Slide body content in Markdown' },
-        leftCol: { type: 'string', description: 'Left column content in Markdown (for two-column layout)' },
-        rightCol: { type: 'string', description: 'Right column content in Markdown (for two-column layout)' },
+        title: { type: 'string', description: 'Slide title. May contain inline HTML elements only (no block elements).' },
+        subtitle: { type: 'string', description: 'Slide subtitle. May contain inline HTML elements only (no block elements).' },
+        body: { type: 'string', description: 'Slide body content as an HTML fragment. Use allowed block and inline elements only.' },
+        leftCol: { type: 'string', description: 'Left column content as an HTML fragment (for two-column layout).' },
+        rightCol: { type: 'string', description: 'Right column content as an HTML fragment (for two-column layout).' },
         imageUrl: { type: 'string', description: 'Image URL or path (for image layout)' },
-        notes: { type: 'string', description: 'Speaker notes in Markdown' },
+        notes: { type: 'string', description: 'Speaker notes as an HTML fragment.' },
         insertAt: {
           type: 'number',
           description: 'Position to insert the slide (0-based). Omit to append at end.',
@@ -162,5 +162,29 @@ Rules:
 - You may call multiple tools in a single turn to create or edit multiple slides at once.
 - After making changes, briefly summarize what was done (e.g., "Added 3 slides about X.").
 - Use show_summary proactively to keep track of the current slide state.
-- Always respond in ${langName}.`;
+- Always respond in ${langName}.
+
+Content fields (body, leftCol, rightCol, notes) must be written as HTML fragments
+using only the allowed element subset. Do not use Markdown.
+
+The title and subtitle fields also accept inline HTML elements only —
+no block elements (<p>, <ul>, etc.).
+
+Do not use <h1> or <h2> anywhere in content fields.
+
+For inline formatting:
+- Bold: <strong>, italic: <em>
+- Font size: <span data-size="xs|sm|lg|xl|2xl">
+- Text color: <span data-color="PALETTE_NAME"> using palette names below
+- Highlight: <span data-highlight="PALETTE_NAME">
+- Alignment: <p data-align="left|center|right|justify">
+
+Available palette colors: accent, muted, danger, success, warning, info
+Choose the palette name that best matches the user's intent and the active theme.
+Only use a hex value (data-color="#rrggbb") when the user explicitly provides
+a specific brand color or color code. Never choose hex on your own.
+If the right color is unclear, ask the user.
+
+Always write well-formed HTML. Void elements (<br>, <hr>, <img>) must be
+self-closed. Do not leave unclosed tags.`;
 }

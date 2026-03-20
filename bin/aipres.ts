@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
+import { runStart } from '../src/cli/start.js';
 import { runChat } from '../src/cli/chat.js';
 import { runExport } from '../src/cli/export.js';
 import { runPreview } from '../src/cli/preview.js';
@@ -12,17 +13,21 @@ const program = new Command();
 program
   .name('aipres')
   .description('LLM-powered interactive Reveal.js presentation builder')
-  .version('0.1.0');
+  .version('0.1.0')
+  .option('--port <n>', 'Port number for preview server', (v) => parseInt(v, 10))
+  .action(async (opts) => {
+    await runStart({ port: opts.port });
+  });
 
-// preso chat
+// aipres chat (headless / CI)
 program
   .command('chat')
-  .description('Start interactive chat to build a presentation')
+  .description('Start interactive chat without preview server')
   .action(async () => {
     await runChat();
   });
 
-// preso preview
+// aipres preview
 program
   .command('preview')
   .description('Start live preview server with hot reload')
@@ -31,7 +36,7 @@ program
     await runPreview({ port: opts.port });
   });
 
-// preso export
+// aipres export
 program
   .command('export [file]')
   .description('Export presentation to HTML file')
@@ -40,7 +45,7 @@ program
     await runExport(file, { open: opts.open });
   });
 
-// preso theme
+// aipres theme
 const themeCmd = program.command('theme').description('Manage themes');
 
 themeCmd
@@ -57,7 +62,7 @@ themeCmd
     await runThemeAdd(themePath);
   });
 
-// preso config
+// aipres config
 const configCmd = program.command('config').description('Manage configuration');
 
 configCmd
@@ -89,7 +94,7 @@ configCmd
     await runConfigReset({ force: opts.force });
   });
 
-// preso reset
+// aipres reset
 program
   .command('reset')
   .description('Reset current slides to empty')
@@ -98,4 +103,11 @@ program
     await runReset({ force: opts.force });
   });
 
-program.parse(process.argv);
+(async () => {
+  try {
+    await program.parseAsync(process.argv);
+  } catch (e) {
+    console.error(e);
+    process.exit(1);
+  }
+})();
