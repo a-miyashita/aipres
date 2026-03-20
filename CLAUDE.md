@@ -31,6 +31,7 @@ With exceptions for minor bug fixes, all development follows a two-phase process
 ### Implementation Phase
 
 - Enter the implementation phase when instructed to "perform implementation work."
+- Before beginning design, change the status of ADR created in design phase to Approved
 - In the implementation phase, thoroughly review both the specifications and implementation plans, then proceed with coding based on their contents.
 - Once all tasks outlined in the implementation plan have been completed, delete the plan document.
 
