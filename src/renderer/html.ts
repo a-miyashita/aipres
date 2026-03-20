@@ -5,7 +5,7 @@ import type { SlideModel, ResolvedConfig } from '../model/types.js';
 import { renderSlide } from './templates.js';
 import { loadRevealJs, loadRevealCss, loadRevealThemeCss, loadThemeCss } from './assets.js';
 import { loadTheme } from '../theme/manager.js';
-import { DEFAULT_THEME_JSON, DEFAULT_THEME_CSS } from '../theme/defaults.js';
+import { DEFAULT_THEME_JSON, DEFAULT_THEME_CSS, SHARED_LAYOUT_CSS, generatePaletteCss } from '../theme/defaults.js';
 
 const HOT_RELOAD_SCRIPT = (port: number) => `
 <script>
@@ -39,18 +39,26 @@ export async function renderPresentation(
   try {
     const loadedTheme = await loadTheme(model.theme);
     themeDef = loadedTheme;
-    const themeDir = path.join(os.homedir(), '.aipres', 'themes', model.theme);
-    const loaded = await loadThemeCss(themeDef, themeDir);
-    if (loaded) customCss = loaded;
+    if (themeDef.customCss) {
+      const themeDir = path.join(os.homedir(), '.aipres', 'themes', model.theme);
+      const loaded = await loadThemeCss(themeDef, themeDir);
+      customCss = loaded || SHARED_LAYOUT_CSS;
+    } else {
+      // 'black' shares the same rich dark styling as 'default'
+      // All other built-in themes use shared layout only (preserving Reveal.js theme colors)
+      customCss = themeDef.name === 'black' ? DEFAULT_THEME_CSS : SHARED_LAYOUT_CSS;
+    }
   } catch {
     // Use defaults
   }
+
+  const paletteCss = themeDef.palette ? generatePaletteCss(themeDef.palette) : '';
 
   const revealJs = loadRevealJs();
   const revealCss = loadRevealCss();
   const themeCss = loadRevealThemeCss(themeDef.baseTheme);
 
-  const slidesHtml = model.slides.map(renderSlide).join('\n');
+  const slidesHtml = (await Promise.all(model.slides.map(renderSlide))).join('\n');
 
   const revealOptions = JSON.stringify(model.revealOptions, null, 2);
 
@@ -72,6 +80,9 @@ ${themeCss}
   </style>
   <style>
 ${customCss}
+  </style>
+  <style>
+${paletteCss}
   </style>
 </head>
 <body>
