@@ -7,7 +7,7 @@ import { runStart } from '../src/cli/start.js';
 import { runChat } from '../src/cli/chat.js';
 import { runExport } from '../src/cli/export.js';
 import { runPreview } from '../src/cli/preview.js';
-import { runThemeList, runThemeAdd } from '../src/cli/theme.js';
+import { runThemeList, runThemeAdd, runThemeNew, runThemeEdit, runThemeDelete } from '../src/cli/theme.js';
 import { runConfigList, runConfigGet, runConfigSet, runConfigReset } from '../src/cli/config.js';
 import { runReset } from '../src/cli/reset.js';
 import {
@@ -75,6 +75,29 @@ themeCmd
   .description('Add a theme from a directory')
   .action(async (themePath: string) => {
     await runThemeAdd(themePath);
+  });
+
+themeCmd
+  .command('new <name>')
+  .description('Create a new theme based on the default')
+  .action(async (name: string) => {
+    await runThemeNew(name);
+  });
+
+themeCmd
+  .command('edit <name>')
+  .description('Edit a theme with LLM assistance')
+  .option('--port <n>', 'Port number for preview server', (v) => parseInt(v, 10))
+  .action(async (name: string, opts) => {
+    await runThemeEdit(name, { port: opts.port });
+  });
+
+themeCmd
+  .command('delete <name>')
+  .description('Delete a user-installed theme')
+  .option('--force', 'Skip confirmation')
+  .action(async (name: string, opts) => {
+    await runThemeDelete(name, { force: opts.force });
   });
 
 // aipres config

@@ -49,7 +49,8 @@ Commander.js entry point. Defines all CLI commands and wires them to `src/cli/*`
 | `preview.ts` | `aipres preview` | Preview-only server with SIGINT handler for graceful shutdown. |
 | `export.ts` | `aipres export` | One-shot HTML render to file. |
 | `config.ts` | `aipres config *` | Config CRUD via dot-notation keys. |
-| `theme.ts` | `aipres theme *` | Theme listing and import. |
+| `theme.ts` | `aipres theme *` | Theme listing, import, creation, and deletion handlers. |
+| `theme-editor.ts` | `aipres theme edit` | LLM-assisted theme editing mode: preview server with sample slides, in-memory chat loop, snapshot-based `/reset`. |
 | `reset.ts` | `aipres reset` | Clears slide state with confirmation. |
 
 ### `src/llm/`
@@ -62,7 +63,13 @@ Commander.js entry point. Defines all CLI commands and wires them to `src/cli/*`
 - Retry logic: 3 attempts, exponential backoff (1s, 2s)
 - Writes streamed text directly to `process.stdout` for real-time display
 
-**`tools.ts`** — Tool definitions and system prompt:
+**`theme-tools.ts`** — Theme editing tool definitions and system prompt:
+- Exports `THEME_TOOLS: Tool[]` (3 tools: `update_css`, `set_base_theme`, `set_palette`)
+- `buildThemeSystemPrompt(language, sampleDescription)` — theme-specific system prompt including Reveal.js CSS variable reference and sample slide descriptions
+- `dispatchThemeTool()` — async dispatcher: writes CSS/theme.json to disk
+- `runThemeToolUseLoop()` — same pattern as `runToolUseLoop` but for theme tools; calls `broadcast({ type: 'reload' })` after each tool execution
+
+**`tools.ts`** — Slide editing tool definitions and system prompt:
 - Exports `TOOLS: Tool[]` (7 tools, see below)
 - `buildSystemPrompt(language)` returns a localized system prompt that includes the slide model structure, tool documentation, and formatting rules
 - Supports 11 locale codes (BCP 47)
@@ -127,6 +134,8 @@ provider.chat() → response with tool_uses
 
 ### `src/theme/`
 
+**`samples.ts`** — Fixed `SAMPLE_SLIDES: SlideModel` covering all five layouts, used as the preview content in theme editing mode. Also exports `buildSampleDescription()` for injection into the theme editing system prompt.
+
 Theme directory structure:
 ```
 ~/.aipres/themes/<name>/
@@ -151,6 +160,14 @@ Theme directory structure:
 | `set_theme` | Change the active theme | `theme` (name string) |
 | `set_reveal_option` | Set any Reveal.js init option | `key`, `value` |
 | `show_summary` | Print slide list in terminal | — |
+
+### Theme Editing Tools (available only in `aipres theme edit`)
+
+| Tool | Purpose | Key Inputs |
+|------|---------|-----------|
+| `update_css` | Replace full custom.css | `css` |
+| `set_base_theme` | Change Reveal.js base theme | `name` |
+| `set_palette` | Update palette colors (partial) | `palette` (object with any of: accent, muted, danger, success, warning, info) |
 
 ## Data Flow: One Chat Turn
 

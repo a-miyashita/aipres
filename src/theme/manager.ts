@@ -5,6 +5,8 @@ import type { ThemeDefinition } from '../model/types.js';
 import { DEFAULT_THEME_JSON, DEFAULT_THEME_CSS, BUILTIN_THEMES } from './defaults.js';
 import { ThemeError } from '../utils/errors.js';
 
+const THEME_NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$/;
+
 export function getThemesDir(): string {
   return path.join(os.homedir(), '.aipres', 'themes');
 }
@@ -52,6 +54,51 @@ export async function loadTheme(name: string): Promise<ThemeDefinition> {
     if (builtin) return builtin;
     throw new ThemeError(`Theme "${name}" not found. Use "aipres theme list" to see available themes.`);
   }
+}
+
+export function validateThemeName(name: string): string | null {
+  if (!THEME_NAME_PATTERN.test(name)) {
+    return 'Name must start with a letter or digit and contain only letters, digits, hyphens, and underscores (max 64 characters).';
+  }
+  return null;
+}
+
+export async function createTheme(name: string): Promise<void> {
+  const err = validateThemeName(name);
+  if (err) throw new ThemeError(err);
+
+  const themeDir = path.join(getThemesDir(), name);
+  try {
+    await fs.stat(themeDir);
+    throw new ThemeError(`Theme "${name}" already exists.`);
+  } catch (e) {
+    if (e instanceof ThemeError) throw e;
+    // Directory does not exist — proceed
+  }
+
+  await fs.mkdir(themeDir, { recursive: true });
+
+  const themeDef: ThemeDefinition = {
+    ...DEFAULT_THEME_JSON,
+    name,
+    displayName: name,
+    description: '',
+  };
+  await fs.writeFile(path.join(themeDir, 'theme.json'), JSON.stringify(themeDef, null, 2), 'utf-8');
+  await fs.writeFile(path.join(themeDir, 'custom.css'), DEFAULT_THEME_CSS, 'utf-8');
+}
+
+export async function deleteTheme(name: string): Promise<void> {
+  if (BUILTIN_THEMES.some(t => t.name === name)) {
+    throw new ThemeError(`"${name}" is a built-in theme and cannot be deleted.`);
+  }
+  const themeDir = path.join(getThemesDir(), name);
+  try {
+    await fs.stat(themeDir);
+  } catch {
+    throw new ThemeError(`Theme "${name}" not found.`);
+  }
+  await fs.rm(themeDir, { recursive: true, force: true });
 }
 
 export async function addTheme(sourcePath: string): Promise<void> {
