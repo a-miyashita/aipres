@@ -54,116 +54,118 @@ export async function runChat(): Promise<void> {
     terminal: true,
   });
 
-  const prompt = () => {
-    rl.question(chalk.bold.blue('you> '), async (input) => {
-      input = input.trim();
+  return new Promise<void>((resolve) => {
+    const prompt = () => {
+      rl.question(chalk.bold.blue('you> '), async (input) => {
+        input = input.trim();
 
-      if (!input) {
-        prompt();
-        return;
-      }
-
-      // Slash commands
-      if (input.startsWith('/')) {
-        const parts = input.split(/\s+/);
-        const cmd = parts[0].toLowerCase();
-
-        if (cmd === '/quit' || cmd === '/exit') {
-          console.log(chalk.dim('\nSession ended. Slides saved.'));
-          rl.close();
-          return;
-        }
-
-        if (cmd === '/reset') {
-          await resetState();
-          model = await loadState();
-          logger.success('Slides reset to empty.');
+        if (!input) {
           prompt();
           return;
         }
 
-        if (cmd === '/export') {
-          const file = parts[1] ?? config.export.defaultFile;
-          const spinner = ora('Exporting...').start();
-          try {
-            await writeHtml(model, file, config);
-            spinner.succeed(`Exported to ${file}`);
-          } catch (err) {
-            spinner.fail(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
+        // Slash commands
+        if (input.startsWith('/')) {
+          const parts = input.split(/\s+/);
+          const cmd = parts[0].toLowerCase();
+
+          if (cmd === '/quit' || cmd === '/exit') {
+            console.log(chalk.dim('\nSession ended. Slides saved.'));
+            rl.close();
+            return;
           }
-          prompt();
-          return;
-        }
 
-        if (cmd === '/summary') {
-          if (model.slides.length === 0) {
-            logger.info('No slides yet.');
-          } else {
-            console.log(chalk.cyan('\n── Slide Summary ──'));
-            model.slides.forEach((slide, i) => {
-              const title = slide.title ? `: ${slide.title}` : '';
-              console.log(`  [${i}] ${slide.layout}${title}`);
-            });
-            console.log(chalk.cyan('──────────────────\n'));
+          if (cmd === '/reset') {
+            await resetState();
+            model = await loadState();
+            logger.success('Slides reset to empty.');
+            prompt();
+            return;
           }
+
+          if (cmd === '/export') {
+            const file = parts[1] ?? config.export.defaultFile;
+            const spinner = ora({ text: 'Exporting...', discardStdin: false }).start();
+            try {
+              await writeHtml(model, file, config);
+              spinner.succeed(`Exported to ${file}`);
+            } catch (err) {
+              spinner.fail(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
+            }
+            prompt();
+            return;
+          }
+
+          if (cmd === '/summary') {
+            if (model.slides.length === 0) {
+              logger.info('No slides yet.');
+            } else {
+              console.log(chalk.cyan('\n── Slide Summary ──'));
+              model.slides.forEach((slide, i) => {
+                const title = slide.title ? `: ${slide.title}` : '';
+                console.log(`  [${i}] ${slide.layout}${title}`);
+              });
+              console.log(chalk.cyan('──────────────────\n'));
+            }
+            prompt();
+            return;
+          }
+
+          if (cmd === '/help') {
+            printHelp();
+            prompt();
+            return;
+          }
+
+          logger.warn(`Unknown command: ${cmd}. Type /help for help.`);
           prompt();
           return;
         }
 
-        if (cmd === '/help') {
-          printHelp();
-          prompt();
-          return;
-        }
+        // Normal message — send to LLM
+        messages.push({ role: 'user', content: input });
 
-        logger.warn(`Unknown command: ${cmd}. Type /help for help.`);
-        prompt();
-        return;
-      }
+        const spinner = ora({ text: chalk.dim('Thinking...'), spinner: 'dots', discardStdin: false }).start();
 
-      // Normal message — send to LLM
-      messages.push({ role: 'user', content: input });
-
-      const spinner = ora({ text: chalk.dim('Thinking...'), spinner: 'dots' }).start();
-
-      try {
-        spinner.stop();
-        process.stdout.write(chalk.bold.green('assistant> '));
-
-        const result = await runToolUseLoop(systemPrompt, messages, model, provider);
-        model = result.updatedModel;
-
-        // Update messages (runToolUseLoop already appended to the array copy)
-        // We need to sync back
-        messages.length = 0;
-        messages.push(...result.messages);
-
-        await saveState(model);
-
-        // Regenerate HTML silently
         try {
-          await writeHtml(model, config.export.defaultFile, config);
-        } catch {
-          // Ignore HTML generation errors
+          spinner.stop();
+          process.stdout.write(chalk.bold.green('assistant> '));
+
+          const result = await runToolUseLoop(systemPrompt, messages, model, provider);
+          model = result.updatedModel;
+
+          // Update messages (runToolUseLoop already appended to the array copy)
+          // We need to sync back
+          messages.length = 0;
+          messages.push(...result.messages);
+
+          await saveState(model);
+
+          // Regenerate HTML silently
+          try {
+            await writeHtml(model, config.export.defaultFile, config);
+          } catch {
+            // Ignore HTML generation errors
+          }
+
+        } catch (err) {
+          spinner.fail(`Error: ${err instanceof Error ? err.message : String(err)}`);
         }
 
-      } catch (err) {
-        spinner.fail(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      }
+        prompt();
+      });
+    };
 
-      prompt();
+    rl.on('close', () => {
+      console.log(chalk.dim('\nSession ended. Slides saved.'));
+      resolve();
     });
-  };
 
-  rl.on('close', () => {
-    console.log(chalk.dim('\nSession ended. Slides saved.'));
-    process.exit(0);
+    rl.on('SIGINT', () => {
+      console.log(chalk.dim('\nSession ended. Slides saved.'));
+      rl.close();
+    });
+
+    prompt();
   });
-
-  rl.on('SIGINT', () => {
-    console.log(chalk.dim('\nSession ended. Slides saved.'));
-    process.exit(0);
-  });
-
-  prompt();
 }
