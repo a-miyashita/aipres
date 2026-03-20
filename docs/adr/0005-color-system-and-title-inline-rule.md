@@ -32,7 +32,7 @@ Each theme defines the concrete color values for these names in `theme.json` und
 }
 ```
 
-The renderer outputs these as CSS custom properties (`--color-accent`, etc.) so that switching themes automatically updates all palette-colored text.
+The renderer generates CSS custom properties (`--color-palette-accent`, `--color-palette-muted`, etc.) from `theme.palette` at render time and injects them as a `<style>` block, so switching themes automatically updates all palette-colored text.
 
 **Why a fixed set rather than theme-defined names?**
 The LLM must know which color names are available without reading the current theme at prompt-construction time. A fixed set can be written statically into the system prompt. If themes could define arbitrary names, the system prompt would need to be dynamically rebuilt on every theme change, and the LLM's behavior would be less predictable.
@@ -76,8 +76,8 @@ No clear benefit; produces invalid HTML nesting. Rejected.
 
 ## Consequences
 
-- `ThemeDefinition` in `types.ts` gains a `palette` field (required, six keys).
-- All existing themes (including the default) must be updated to include `palette`.
+- `ThemeDefinition` in `types.ts` gains an optional `palette` field (six keys). Themes without `palette` simply omit the CSS var injection.
+- The default theme and all built-in Reveal.js themes ship with `palette` definitions.
 - The renderer generates `:root` CSS custom properties from `theme.palette` before inlining the theme CSS.
 - The system prompt grows slightly to include the palette name list and color selection policy.
 - Hex support requires a JavaScript pass at render time to apply `data-color="#..."` as inline styles (CSS cannot read attribute values as color natively).

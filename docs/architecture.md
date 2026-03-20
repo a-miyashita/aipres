@@ -94,13 +94,20 @@ provider.chat() → response with tool_uses
 ### `src/renderer/`
 
 **`html.ts`** — Assembles the final HTML document:
-1. Load theme JSON + CSS from `~/.aipres/themes/<name>/`
+1. Load theme JSON + CSS (installed theme or built-in fallback)
 2. Load Reveal.js JS and CSS from `node_modules/reveal.js`
-3. Render each slide via `templates.ts`
-4. Inline everything into a single self-contained HTML file
-5. Optionally inject WebSocket hot-reload script
+3. Render each slide via `templates.ts` (async, `Promise.all`)
+4. Inject palette CSS vars from `theme.palette` as a separate `<style>` block
+5. Inline everything into a single self-contained HTML file
+6. Optionally inject WebSocket hot-reload script
 
-**`templates.ts`** — Per-layout HTML renderers. Currently uses `marked` to convert `body` (Markdown string) to HTML. **This is the layer that will change when the rich-text migration is complete.**
+**`templates.ts`** — Per-layout HTML renderers. All render functions are async; content fields are processed via `sanitizer.ts`.
+
+**`sanitizer.ts`** — HTML subset sanitizer and content dispatcher:
+- `sanitizeBlock(html)` — strips disallowed tags/attributes from block content (body, leftCol, rightCol, notes)
+- `sanitizeInline(html)` — same for inline-only content (title, subtitle)
+- `renderContent(text, mode)` — detects content type: if `text` contains `<`, treats as HTML subset and sanitizes; otherwise falls back to `marked` for legacy Markdown
+- Local `<img src>` paths are converted to base64 data URLs; missing files fall back to `src=""`
 
 **`assets.ts`** — Reads Reveal.js bundles from `node_modules`, handles image base64 encoding.
 
@@ -123,11 +130,15 @@ provider.chat() → response with tool_uses
 Theme directory structure:
 ```
 ~/.aipres/themes/<name>/
-├── theme.json    { name, displayName, description, baseTheme, customCss, assets }
+├── theme.json    { name, displayName, description, baseTheme, customCss, assets, palette? }
 └── custom.css
 ```
 
 `baseTheme` maps to a Reveal.js built-in theme (black, white, league, etc.).
+
+`palette` defines six semantic color names (`accent`, `muted`, `danger`, `success`, `warning`, `info`) as hex values. The renderer generates `--color-palette-*` CSS custom properties from this field and injects them into every rendered page, so `data-color="accent"` etc. always reflect the active theme.
+
+**Built-in themes** — 14 Reveal.js themes (black, white, league, beige, sky, night, serif, simple, solarized, blood, moon, dracula, black-contrast, white-contrast) are available without installation. `loadTheme()` falls back to these when no matching directory exists under `~/.aipres/themes/`. Built-in themes use `SHARED_LAYOUT_CSS` (structural rules only) so Reveal.js theme colors are preserved; the `black` built-in shares the same full dark CSS as the `default` theme. User-installed themes with the same name take precedence over built-ins.
 
 ## LLM Tools
 
@@ -164,17 +175,13 @@ Theme directory structure:
    → browser reloads
 ```
 
-## Pending: Rich Text Migration
+## Rich Text Content Fields
 
-The `body` field on `Slide` is currently a Markdown string rendered via `marked`. This will be migrated to an HTML subset to support Google Slides-level inline formatting.
+All text content fields (`body`, `leftCol`, `rightCol`, `notes`, `title`, `subtitle`) accept an HTML subset string. The LLM writes HTML directly into tool call arguments; the server sanitizes against an allowlist before rendering.
 
-**Impact when implemented:**
-- `types.ts`: `body` type annotation changes (or stays `string` with content semantics change)
-- `templates.ts`: replace `marked.parse()` with an HTML sanitizer/passthrough
-- `tools.ts`: update `input_schema` for `add_slide` / `update_slide` to document the HTML subset format
-- `llm/tools.ts`: update system prompt to instruct the LLM to write HTML subset instead of Markdown
+Legacy Markdown in existing `state/current.json` files is detected by the absence of `<` and rendered via `marked` as a transparent fallback.
 
-See `docs/rich-text-spec.md` for the full specification.
+See `docs/rich-text-spec.md` for the full element/attribute allowlist, palette color system, and LLM instructions.
 
 ## Configuration Reference
 

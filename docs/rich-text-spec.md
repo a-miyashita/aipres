@@ -1,6 +1,6 @@
 # Rich Text Specification — `body` HTML Subset
 
-**Status: DRAFT — not yet implemented**
+**Status: Implemented** (v0.2)
 
 This document defines the format that replaces Markdown in the `body`, `leftCol`, `rightCol`, `notes`, `title`, and `subtitle` fields of the `Slide` model.
 
@@ -330,12 +330,12 @@ When this spec is implemented, the following migration strategy applies:
 
 ## Implementation Checklist
 
-- [ ] `src/model/types.ts` — Add JSDoc noting `body`, `title`, etc. now accept HTML subset
-- [ ] `src/model/types.ts` / `theme.json` schema — Add `palette` field to `ThemeDefinition`
-- [ ] `src/theme/defaults.ts` — Add `palette` to default theme JSON; add CSS custom properties + `[data-color]` / `[data-highlight]` / `[data-size]` / `[data-align]` rules
-- [ ] `src/renderer/sanitizer.ts` (new) — Wrap `sanitize-html` with the allowlist; handle local image → base64 conversion
-- [ ] `src/renderer/templates.ts` — Replace `marked.parse()` with sanitizer passthrough + legacy Markdown fallback (detect by presence of `<`)
-- [ ] `src/llm/tools.ts` — Update `input_schema` descriptions for `title`, `subtitle`, `body`, `leftCol`, `rightCol` in `add_slide` / `update_slide`
-- [ ] `src/llm/tools.ts` — Update `buildSystemPrompt()` with HTML subset + color policy instructions
-- [ ] Add npm dependency: `sanitize-html`
-- [ ] Tests: sanitizer allowlist, legacy Markdown fallback, local image base64, hex color passthrough
+- [x] `src/model/types.ts` — Add JSDoc noting `body`, `title`, etc. now accept HTML subset
+- [x] `src/model/types.ts` / `theme.json` schema — Add `palette` field to `ThemeDefinition`
+- [x] `src/theme/defaults.ts` — Add `palette` to default theme JSON; palette CSS vars generated dynamically via `generatePaletteCss()` and injected at render time
+- [x] `src/renderer/sanitizer.ts` (new) — Wrap `sanitize-html` with the allowlist; handle local image → base64 conversion
+- [x] `src/renderer/templates.ts` — Replace `marked.parse()` with sanitizer passthrough + legacy Markdown fallback (detect by presence of `<`)
+- [x] `src/llm/tools.ts` — Update `input_schema` descriptions for `title`, `subtitle`, `body`, `leftCol`, `rightCol` in `add_slide` / `update_slide`
+- [x] `src/llm/tools.ts` — Update `buildSystemPrompt()` with HTML subset + color policy instructions
+- [x] Add npm dependency: `sanitize-html`
+- [x] Tests: sanitizer allowlist, legacy Markdown fallback, local image base64, hex color passthrough
