@@ -2,7 +2,7 @@
 
 **Status: DRAFT — not yet implemented**
 
-This document defines the format that replaces Markdown in the `body`, `leftCol`, `rightCol`, and `notes` fields of the `Slide` model.
+This document defines the format that replaces Markdown in the `body`, `leftCol`, `rightCol`, `notes`, `title`, and `subtitle` fields of the `Slide` model.
 
 ## Motivation
 
@@ -29,11 +29,12 @@ The LLM interface is an HTML-subset string. Rationale:
 
 ### Storage format
 
-`body` (and related fields) remain `string` in TypeScript and JSON. The string content is an HTML-subset fragment — **not a full document**, just the inner content of a slide's content area.
+All text fields remain `string` in TypeScript and JSON. The string content is an HTML-subset fragment — **not a full document**, just the inner content of the relevant element.
 
 ```json
 {
-  "body": "<p>YoY growth was <span data-size=\"large\"><strong>70% up</strong></span> this quarter.</p><ul><li>Strategy A</li><li>Strategy B</li></ul>"
+  "title": "YoY growth: <span data-size=\"lg\" data-color=\"accent\">+47%</span>",
+  "body": "<p>Revenue grew consistently across all regions.</p><ul><li>APAC: +62%</li><li>EMEA: +41%</li></ul>"
 }
 ```
 
@@ -51,9 +52,29 @@ This overhead is acceptable given the expressiveness gained. Slide bodies are sh
 
 ---
 
+## Field Rules
+
+### `body`, `leftCol`, `rightCol`, `notes`
+
+Both block and inline elements are allowed (see full lists below).
+
+### `title`, `subtitle`
+
+**Inline elements only.** Block elements (`<p>`, `<ul>`, `<h3>`, etc.) are forbidden. These fields map to `<h1>` / `<h2>` / `<p>` elements whose block structure is fixed by the layout template.
+
+```html
+<!-- ✅ valid title -->
+"title": "Revenue: <span data-size=\"lg\" data-color=\"accent\">$4.2B</span>"
+
+<!-- ❌ invalid — block element in title -->
+"title": "<p>Revenue</p>"
+```
+
+---
+
 ## Allowed Elements
 
-### Block Elements
+### Block Elements (body / leftCol / rightCol / notes only)
 
 | Element | Purpose | Allowed Attributes |
 |---------|---------|-------------------|
@@ -65,18 +86,16 @@ This overhead is acceptable given the expressiveness gained. Slide bodies are sh
 | `<h4>` | Sub-heading (level 4) | — |
 | `<blockquote>` | Pull quote / callout | — |
 | `<pre>` | Preformatted block | — |
-| `<code>` | Code (inline or block) | `class` (for language hint, e.g. `language-python`) |
 | `<table>` | Table | — |
 | `<thead>`, `<tbody>`, `<tfoot>` | Table sections | — |
 | `<tr>` | Table row | — |
 | `<th>` | Header cell | `colspan`, `rowspan`, `data-align` |
 | `<td>` | Data cell | `colspan`, `rowspan`, `data-align` |
 | `<hr>` | Horizontal rule | — |
-| `<br>` | Line break | — |
 
-> **Note:** `<h1>` and `<h2>` are reserved for slide `title` fields and must not appear in `body`.
+> **Note:** `<h1>` and `<h2>` are reserved for slide layout templates and must not appear in any content field.
 
-### Inline Elements
+### Inline Elements (all fields)
 
 | Element | Purpose | Allowed Attributes |
 |---------|---------|-------------------|
@@ -84,13 +103,14 @@ This overhead is acceptable given the expressiveness gained. Slide bodies are sh
 | `<em>` / `<i>` | Italic | — |
 | `<u>` | Underline | — |
 | `<s>` / `<del>` | Strikethrough | — |
-| `<code>` | Inline code | — |
+| `<code>` | Inline code | `class` (`language-*`) |
 | `<sup>` | Superscript | — |
 | `<sub>` | Subscript | — |
 | `<mark>` | Highlight (default yellow) | — |
-| `<a>` | Link | `href` only (must be `http://`, `https://`, or `#`) |
-| `<span>` | Generic inline container | See `data-*` attributes below |
-| `<img>` | Inline image | `src`, `alt`, `width`, `height` |
+| `<a>` | Link | `href` only (`http://`, `https://`, or `#`) |
+| `<span>` | Formatting container | See `data-*` attributes below |
+| `<img>` | Image | `src`, `alt`, `width`, `height` |
+| `<br>` | Line break | — |
 
 ---
 
@@ -117,11 +137,9 @@ Revenue grew by <span data-size="xl"><strong>47%</strong></span> year-over-year.
 
 ### `data-color`
 
-Sets the text color. Accepts:
-- Named palette values (see below)
-- Hex strings: `#rrggbb` or `#rgb`
+Sets the text color.
 
-Palette names (theme-aware — actual colors depend on the active theme):
+**Preferred: named palette colors** (theme-aware — resolves to CSS custom properties defined by the active theme):
 
 | Name | Semantic meaning |
 |------|-----------------|
@@ -132,6 +150,8 @@ Palette names (theme-aware — actual colors depend on the active theme):
 | `warning` | Amber / caution |
 | `info` | Blue / informational |
 
+**Exception: hex values** (`#rrggbb` or `#rgb`) are accepted by the sanitizer but the LLM must only use them when the user explicitly specifies a brand color or exact color code. See [LLM Color Selection Policy](#llm-color-selection-policy) below.
+
 Example:
 ```html
 <span data-color="danger">Risk:</span> delivery may slip by 2 weeks.
@@ -139,7 +159,7 @@ Example:
 
 ### `data-highlight`
 
-Background highlight color for the enclosed text. Accepts the same palette names as `data-color`, plus `#rrggbb` hex.
+Background highlight color for the enclosed text. Accepts the same palette names as `data-color`, and hex values under the same restriction.
 
 Example:
 ```html
@@ -153,7 +173,7 @@ Key finding: <span data-highlight="warning">margins are under pressure</span>.
 | `bold` | font-weight: bold (prefer `<strong>` when semantic) |
 | `normal` | Resets inherited bold |
 
-### `data-size` and `data-color` may be combined
+### Attributes may be combined
 
 ```html
 <span data-size="lg" data-color="accent">Main point</span>
@@ -178,6 +198,78 @@ Example:
 
 ---
 
+## Color Palette and Themes
+
+Each theme defines the concrete color values for the six palette names in `theme.json`:
+
+```json
+{
+  "name": "corporate",
+  "baseTheme": "white",
+  "palette": {
+    "accent":  "#0066cc",
+    "muted":   "#888888",
+    "danger":  "#cc0000",
+    "success": "#008800",
+    "warning": "#ff8800",
+    "info":    "#0088cc"
+  }
+}
+```
+
+The renderer outputs these as CSS custom properties on `:root`, and the theme CSS (or default CSS) maps `data-color` / `data-highlight` to those properties:
+
+```css
+:root {
+  --color-accent:  #0066cc;
+  --color-muted:   #888888;
+  --color-danger:  #cc0000;
+  --color-success: #008800;
+  --color-warning: #ff8800;
+  --color-info:    #0088cc;
+}
+[data-color="accent"]       { color: var(--color-accent); }
+[data-color="muted"]        { color: var(--color-muted); }
+[data-color="danger"]       { color: var(--color-danger); }
+[data-color="success"]      { color: var(--color-success); }
+[data-color="warning"]      { color: var(--color-warning); }
+[data-color="info"]         { color: var(--color-info); }
+[data-highlight="accent"]   { background-color: var(--color-accent); }
+/* ... etc */
+[data-color^="#"]           { color: attr(data-color); } /* hex fallback — see note */
+```
+
+> **Note on hex rendering:** CSS does not natively support `color: attr(data-color)`. Hex values will require a small JavaScript pass at render time (or a PostCSS plugin) to convert `data-color="#ff6b35"` into inline styles. Implementation details are deferred.
+
+---
+
+## LLM Color Selection Policy
+
+The system prompt instructs the LLM to follow this decision tree when applying color:
+
+1. **Does the user specify an exact color code (e.g. "#003087", "Pantone 286")?**
+   → Use `data-color="#003087"` (hex). This is the brand color exception.
+
+2. **Does the user describe a color by intent (e.g. "red", "highlight the risk", "emphasize")?**
+   → Select the best-matching palette name (`danger` for red/risk, `accent` for general emphasis, etc.), taking the active theme into account.
+
+3. **Is the right palette color ambiguous?**
+   → Ask the user: *"Should I use the theme's accent color, or did you have a specific color in mind?"*
+
+**The LLM must never choose a hex color on its own judgment.** Using hex without an explicit user instruction undermines theme consistency and risks color overuse.
+
+---
+
+## Image Handling
+
+The `src` attribute of `<img>` within content fields follows these rules:
+
+- **HTTP/HTTPS URLs**: passed through as-is.
+- **Local file paths** (absolute or relative): the sanitizer resolves the path and converts the image to a base64 data URL (`data:image/png;base64,...`) before storing, so the exported HTML remains self-contained.
+- **Paths that cannot be resolved** (file not found, permission denied): the `src` is replaced with an empty string and a warning is logged; the `alt` text is preserved.
+
+---
+
 ## Disallowed
 
 The following are **always stripped** by the sanitizer, regardless of context:
@@ -193,21 +285,32 @@ The following are **always stripped** by the sanitizer, regardless of context:
 
 ## System Prompt Instructions for LLM
 
-The following guidance will be added to the system prompt to ensure reliable LLM output:
+The following guidance will be added to the system prompt:
 
 ```
 Content fields (body, leftCol, rightCol, notes) must be written as HTML fragments
-using only the allowed subset defined in the rich-text spec. Do not use Markdown.
-Do not use <h1> or <h2> in body — those are reserved for the slide title field.
+using only the allowed element subset. Do not use Markdown.
+
+The title and subtitle fields also accept inline HTML elements only —
+no block elements (<p>, <ul>, etc.).
+
+Do not use <h1> or <h2> anywhere in content fields.
 
 For inline formatting:
-- Use <strong> for bold, <em> for italic
-- Use <span data-size="lg|xl|sm|xs"> to change font size
-- Use <span data-color="accent|danger|success|..."> for text color
-- Use <p data-align="center"> for centered paragraphs
+- Bold: <strong>, italic: <em>
+- Font size: <span data-size="xs|sm|lg|xl|2xl">
+- Text color: <span data-color="PALETTE_NAME"> using palette names below
+- Highlight: <span data-highlight="PALETTE_NAME">
+- Alignment: <p data-align="left|center|right|justify">
 
-Always write well-formed HTML. Self-closing tags (<br>, <hr>, <img>) must be
-properly closed. Do not leave unclosed tags.
+Available palette colors: accent, muted, danger, success, warning, info
+Choose the palette name that best matches the user's intent and the active theme.
+Only use a hex value (data-color="#rrggbb") when the user explicitly provides
+a specific brand color or color code. Never choose hex on your own.
+If the right color is unclear, ask the user.
+
+Always write well-formed HTML. Void elements (<br>, <hr>, <img>) must be
+self-closed. Do not leave unclosed tags.
 ```
 
 ---
@@ -217,23 +320,22 @@ properly closed. Do not leave unclosed tags.
 When this spec is implemented, the following migration strategy applies:
 
 1. **New sessions**: LLM writes HTML subset from day one (system prompt updated).
-2. **Existing `state/current.json`**: On load, detect content type:
-   - If `body` contains `<` tags → treat as HTML subset (already migrated or manually written)
-   - If `body` contains no `<` tags → treat as Markdown, render via `marked` (legacy path)
-   - Legacy path remains in `templates.ts` until all states are migrated or user runs `aipres reset`
-3. **Session history**: Tool call arguments in `session.json` may contain old Markdown body values. These are re-rendered at display time, so the legacy path handles them automatically.
+2. **Existing `state/current.json`**: On load, detect content type per field:
+   - If the value contains `<` → treat as HTML subset
+   - If the value contains no `<` → treat as legacy Markdown, render via `marked`
+   - Legacy path remains in `templates.ts` until the user runs `aipres reset`
+3. **Session history**: Tool call arguments in `session.json` may contain legacy Markdown. The legacy detection path handles them transparently at render time.
 
 ---
 
 ## Implementation Checklist
 
-When implementing this spec, the following files need changes:
-
-- [ ] `src/model/types.ts` — Add JSDoc comment noting `body` is now HTML subset (no type change needed)
-- [ ] `src/renderer/templates.ts` — Replace `marked.parse(slide.body)` with sanitized HTML passthrough + legacy Markdown fallback
-- [ ] `src/llm/tools.ts` — Update `input_schema` descriptions for `body`, `leftCol`, `rightCol` in `add_slide` and `update_slide` tools
-- [ ] `src/llm/tools.ts` — Update `buildSystemPrompt()` with HTML subset instructions
-- [ ] Add dependency: `sanitize-html` (npm) for allowlist-based sanitization
-- [ ] `src/renderer/sanitizer.ts` (new file) — Wrap `sanitize-html` with the allowlist defined in this spec
-- [ ] `src/theme/defaults.ts` — Add CSS for `data-size`, `data-color`, `data-highlight`, `data-align` attributes
-- [ ] Tests for sanitizer (strips disallowed tags/attrs, preserves allowed ones)
+- [ ] `src/model/types.ts` — Add JSDoc noting `body`, `title`, etc. now accept HTML subset
+- [ ] `src/model/types.ts` / `theme.json` schema — Add `palette` field to `ThemeDefinition`
+- [ ] `src/theme/defaults.ts` — Add `palette` to default theme JSON; add CSS custom properties + `[data-color]` / `[data-highlight]` / `[data-size]` / `[data-align]` rules
+- [ ] `src/renderer/sanitizer.ts` (new) — Wrap `sanitize-html` with the allowlist; handle local image → base64 conversion
+- [ ] `src/renderer/templates.ts` — Replace `marked.parse()` with sanitizer passthrough + legacy Markdown fallback (detect by presence of `<`)
+- [ ] `src/llm/tools.ts` — Update `input_schema` descriptions for `title`, `subtitle`, `body`, `leftCol`, `rightCol` in `add_slide` / `update_slide`
+- [ ] `src/llm/tools.ts` — Update `buildSystemPrompt()` with HTML subset + color policy instructions
+- [ ] Add npm dependency: `sanitize-html`
+- [ ] Tests: sanitizer allowlist, legacy Markdown fallback, local image base64, hex color passthrough
