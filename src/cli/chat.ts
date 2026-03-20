@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { loadConfig } from '../config/config.js';
 import { needsSetup, runSetupWizard } from '../config/setup.js';
-import { loadState, saveState, resetState } from '../model/state.js';
+import { loadState, saveState, resetState, loadSession, saveSession, resetSession } from '../model/state.js';
 import { AnthropicProvider } from '../llm/anthropic.js';
 import { buildSystemPrompt } from '../llm/tools.js';
 import { runToolUseLoop } from '../llm/dispatcher.js';
@@ -39,13 +39,15 @@ export async function runChat(): Promise<void> {
   const provider = new AnthropicProvider(config.llm.apiKey, config.llm.model);
 
   const systemPrompt = buildSystemPrompt(config.llm.language);
-  const messages: Message[] = [];
+  const messages: Message[] = await loadSession();
 
   console.log(chalk.green('\nWelcome to aipres chat!'));
   console.log(chalk.dim('Type your message, or /help for commands. Ctrl-C to quit.\n'));
 
-  if (model.slides.length > 0) {
-    logger.info(`Resuming session with ${model.slides.length} slide(s).`);
+  if (messages.length > 0) {
+    logger.info(`Resuming session: ${messages.filter(m => m.role === 'user').length} exchange(s), ${model.slides.length} slide(s).`);
+  } else if (model.slides.length > 0) {
+    logger.info(`${model.slides.length} slide(s) loaded.`);
   }
 
   const rl = readline.createInterface({
@@ -77,8 +79,10 @@ export async function runChat(): Promise<void> {
 
           if (cmd === '/reset') {
             await resetState();
+            await resetSession();
             model = await loadState();
-            logger.success('Slides reset to empty.');
+            messages.length = 0;
+            logger.success('Slides and conversation history reset.');
             prompt();
             return;
           }
@@ -140,6 +144,7 @@ export async function runChat(): Promise<void> {
           messages.push(...result.messages);
 
           await saveState(model);
+          await saveSession(messages);
 
           // Regenerate HTML silently
           try {
