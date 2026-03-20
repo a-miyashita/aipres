@@ -11,6 +11,13 @@ import { writeHtml } from '../renderer/html.js';
 import { logger } from '../utils/logger.js';
 import type { Message } from '../llm/provider.js';
 
+function divider(label: string, color: (s: string) => string): string {
+  const width = process.stdout.columns || 80;
+  const prefix = `── ${label} `;
+  const line = '─'.repeat(Math.max(0, width - prefix.length));
+  return color(`\n${prefix}${line}\n`);
+}
+
 function printHelp(): void {
   console.log(chalk.cyan('\nAvailable commands:'));
   console.log('  /quit, /exit    - End the session');
@@ -58,7 +65,8 @@ export async function runChat(): Promise<void> {
 
   return new Promise<void>((resolve) => {
     const prompt = () => {
-      rl.question(chalk.bold.blue('you> '), async (input) => {
+      process.stdout.write(divider('You', chalk.bold.blue));
+      rl.question(chalk.blue('> '), async (input) => {
         input = input.trim();
 
         if (!input) {
@@ -133,7 +141,7 @@ export async function runChat(): Promise<void> {
 
         try {
           spinner.stop();
-          process.stdout.write(chalk.bold.green('assistant> '));
+          process.stdout.write(divider('Assistant', chalk.bold.green));
 
           const result = await runToolUseLoop(systemPrompt, messages, model, provider);
           model = result.updatedModel;
