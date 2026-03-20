@@ -14,9 +14,7 @@ export const DEFAULT_CONFIG: Config = {
     port: 3000,
     autoOpen: true,
   },
-  export: {
-    defaultFile: './presentation.html',
-  },
+  export: {},
 };
 
 export function getConfigPath(): string {
