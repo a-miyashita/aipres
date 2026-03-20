@@ -1,6 +1,6 @@
 {
   "name": "aipres",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "LLM-powered interactive Reveal.js presentation builder",
   "type": "module",
   "bin": {
