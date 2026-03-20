@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import type { ThemeDefinition } from '../model/types.js';
-import { DEFAULT_THEME_JSON, DEFAULT_THEME_CSS } from './defaults.js';
+import { DEFAULT_THEME_JSON, DEFAULT_THEME_CSS, BUILTIN_THEMES } from './defaults.js';
 import { ThemeError } from '../utils/errors.js';
 
 export function getThemesDir(): string {
@@ -11,33 +11,46 @@ export function getThemesDir(): string {
 
 export async function listThemes(): Promise<ThemeDefinition[]> {
   const themesDir = getThemesDir();
+  const installedNames = new Set<string>();
+  const installed: ThemeDefinition[] = [];
+
   try {
     const entries = await fs.readdir(themesDir, { withFileTypes: true });
-    const themes: ThemeDefinition[] = [];
     for (const entry of entries) {
       if (entry.isDirectory()) {
         try {
-          const theme = await loadTheme(entry.name);
-          themes.push(theme);
+          const theme = await loadInstalledTheme(entry.name);
+          installed.push(theme);
+          installedNames.add(theme.name);
         } catch {
           // Skip invalid themes
         }
       }
     }
-    return themes;
   } catch {
-    return [];
+    // No themes directory yet
   }
+
+  // Merge: installed themes override built-ins with the same name
+  const builtins = BUILTIN_THEMES.filter(t => !installedNames.has(t.name));
+  return [...installed, ...builtins];
+}
+
+async function loadInstalledTheme(name: string): Promise<ThemeDefinition> {
+  const themeDir = path.join(getThemesDir(), name);
+  const themeJsonPath = path.join(themeDir, 'theme.json');
+  const content = await fs.readFile(themeJsonPath, 'utf-8');
+  return JSON.parse(content) as ThemeDefinition;
 }
 
 export async function loadTheme(name: string): Promise<ThemeDefinition> {
-  const themeDir = path.join(getThemesDir(), name);
-  const themeJsonPath = path.join(themeDir, 'theme.json');
   try {
-    const content = await fs.readFile(themeJsonPath, 'utf-8');
-    return JSON.parse(content) as ThemeDefinition;
+    return await loadInstalledTheme(name);
   } catch {
-    throw new ThemeError(`Theme "${name}" not found or invalid theme.json`);
+    // Fall back to built-in themes
+    const builtin = BUILTIN_THEMES.find(t => t.name === name);
+    if (builtin) return builtin;
+    throw new ThemeError(`Theme "${name}" not found. Use "aipres theme list" to see available themes.`);
   }
 }
 
