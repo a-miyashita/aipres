@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { Command } from 'commander';
 import { runStart } from '../src/cli/start.js';
 import { runChat } from '../src/cli/chat.js';
@@ -8,12 +11,15 @@ import { runThemeList, runThemeAdd } from '../src/cli/theme.js';
 import { runConfigList, runConfigGet, runConfigSet, runConfigReset } from '../src/cli/config.js';
 import { runReset } from '../src/cli/reset.js';
 
+const _dir = dirname(fileURLToPath(import.meta.url));
+const { version } = JSON.parse(readFileSync(join(_dir, '../package.json'), 'utf-8')) as { version: string };
+
 const program = new Command();
 
 program
   .name('aipres')
   .description('LLM-powered interactive Reveal.js presentation builder')
-  .version('0.1.0')
+  .version(version)
   .option('--port <n>', 'Port number for preview server', (v) => parseInt(v, 10))
   .action(async (opts) => {
     await runStart({ port: opts.port });
