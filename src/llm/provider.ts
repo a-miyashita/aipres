@@ -1,6 +1,11 @@
 export interface ContentBlock {
   type: string;
   text?: string;
+  source?: {
+    type: string;       // "base64"
+    media_type: string; // e.g. "image/png"
+    data: string;       // base64-encoded file contents
+  };
   id?: string;
   name?: string;
   input?: unknown;

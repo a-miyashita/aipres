@@ -1,5 +1,6 @@
 import type { Slide } from '../model/types.js';
 import { renderContent } from './sanitizer.js';
+import { encodeImageToBase64 } from './assets.js';
 
 async function renderNotes(notes?: string): Promise<string> {
   if (!notes) return '';
@@ -47,7 +48,16 @@ async function renderTwoColumnSlide(slide: Slide): Promise<string> {
 
 async function renderImageSlide(slide: Slide): Promise<string> {
   const title = slide.title ? `<h2>${await renderContent(slide.title, 'inline')}</h2>` : '';
-  const img = slide.imageUrl ? `<img class="slide-image" src="${slide.imageUrl}" alt="${slide.title ?? ''}" />` : '';
+  let imgSrc = slide.imageUrl ?? '';
+  if (imgSrc && !imgSrc.startsWith('http://') && !imgSrc.startsWith('https://') && !imgSrc.startsWith('data:')) {
+    try {
+      imgSrc = await encodeImageToBase64(imgSrc);
+    } catch {
+      console.warn(`[templates] Could not load image: ${imgSrc}`);
+      imgSrc = '';
+    }
+  }
+  const img = imgSrc ? `<img class="slide-image" src="${imgSrc}" alt="${slide.title ?? ''}" />` : '';
   return `<section data-id="${slide.id}">
   ${title}
   ${img}

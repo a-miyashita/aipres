@@ -1,14 +1,36 @@
 import { loadConfig } from '../config/config.js';
-import { loadState } from '../model/state.js';
+import {
+  loadState,
+  migrateFromV1IfNeeded,
+  ensureActiveSession,
+  setActiveSession,
+  sessionExists,
+  createSession,
+  getSlidesPath,
+} from '../model/state.js';
 import { createServer } from '../preview/server.js';
 import { startWatcher } from '../preview/watcher.js';
 import { logger } from '../utils/logger.js';
 import { runChat } from './chat.js';
 
-export async function runStart(opts: { port?: number } = {}): Promise<void> {
+export async function runStart(opts: { port?: number; pres?: string } = {}): Promise<void> {
   const config = await loadConfig();
   const port = opts.port ?? config.preview.port;
-  const model = await loadState();
+
+  await migrateFromV1IfNeeded();
+
+  let activeName: string;
+  if (opts.pres) {
+    if (!(await sessionExists(opts.pres))) {
+      await createSession(opts.pres);
+    }
+    await setActiveSession(opts.pres);
+    activeName = opts.pres;
+  } else {
+    activeName = await ensureActiveSession();
+  }
+
+  const model = await loadState(activeName);
 
   const server = createServer(model, config, port);
 
@@ -16,14 +38,22 @@ export async function runStart(opts: { port?: number } = {}): Promise<void> {
     logger.success(`Preview server running at http://localhost:${port}`);
   });
 
-  const watcher = startWatcher();
+  let currentSlidesPath = getSlidesPath(activeName);
+  const watcher = startWatcher(currentSlidesPath);
 
   if (config.preview.autoOpen) {
     const { default: open } = await import('open');
     await open(`http://localhost:${port}`);
   }
 
-  await runChat();
+  await runChat({
+    presName: activeName,
+    onSessionSwitch(newName, newSlidesPath) {
+      watcher.unwatch(currentSlidesPath);
+      watcher.add(newSlidesPath);
+      currentSlidesPath = newSlidesPath;
+    },
+  });
 
   await watcher.close();
   server.close();

@@ -1,11 +1,10 @@
+import * as fs from 'fs/promises';
 import chokidar from 'chokidar';
-import { getStatePath, loadState } from '../model/state.js';
+import { SlideModelSchema } from '../model/types.js';
 import { broadcast, updateServerModel } from './server.js';
 
-export function startWatcher(): import('chokidar').FSWatcher {
-  const statePath = getStatePath();
-
-  const watcher = chokidar.watch(statePath, {
+export function startWatcher(slidesPath: string): import('chokidar').FSWatcher {
+  const watcher = chokidar.watch(slidesPath, {
     persistent: true,
     ignoreInitial: true,
     awaitWriteFinish: {
@@ -14,11 +13,15 @@ export function startWatcher(): import('chokidar').FSWatcher {
     },
   });
 
-  watcher.on('change', async () => {
+  watcher.on('change', async (changedPath) => {
     try {
-      const model = await loadState();
-      updateServerModel(model);
-      broadcast({ type: 'reload' });
+      const content = await fs.readFile(changedPath, 'utf-8');
+      const data = JSON.parse(content);
+      const result = SlideModelSchema.safeParse(data);
+      if (result.success) {
+        updateServerModel(result.data);
+        broadcast({ type: 'reload' });
+      }
     } catch {
       // Ignore errors during hot reload
     }

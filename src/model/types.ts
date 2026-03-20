@@ -63,7 +63,7 @@ export interface Config {
     autoOpen: boolean;
   };
   export: {
-    defaultFile: string;
+    defaultFile?: string;
   };
 }
 
@@ -71,6 +71,12 @@ export interface ResolvedConfig extends Config {
   llm: Config['llm'] & {
     apiKey: string;
   };
+}
+
+export interface SessionInfo {
+  name: string;
+  slideCount: number;
+  active: boolean;
 }
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -113,6 +119,6 @@ export const ConfigSchema = z.object({
     autoOpen: z.boolean(),
   }),
   export: z.object({
-    defaultFile: z.string(),
+    defaultFile: z.string().optional(),
   }),
 });

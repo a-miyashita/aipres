@@ -7,6 +7,16 @@ const BLOCK_TAGS = [
   'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'hr',
 ];
 
+const SVG_TAGS = [
+  'svg', 'g', 'defs', 'symbol', 'use',
+  'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon',
+  'text', 'tspan',
+  'lineargradient', 'radialgradient', 'stop',
+  'clippath', 'mask',
+  'image',
+  'animate', 'animatetransform', 'animatemotion',
+];
+
 const INLINE_TAGS = [
   'strong', 'b', 'em', 'i', 'u', 's', 'del', 'code', 'sup', 'sub',
   'mark', 'a', 'span', 'img', 'br',
@@ -21,10 +31,49 @@ const FORMATTED_INLINE_TAGS = [
 
 const DATA_FORMAT_ATTRS = ['data-size', 'data-color', 'data-highlight', 'data-weight'];
 
+// SVG presentation attributes — safe to allow globally (no effect on HTML elements)
+const SVG_PRESENTATION_ATTRS = [
+  'fill', 'fill-opacity', 'fill-rule',
+  'stroke', 'stroke-width', 'stroke-dasharray', 'stroke-dashoffset',
+  'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit', 'stroke-opacity',
+  'opacity', 'color', 'transform', 'clip-path', 'mask',
+  'font-family', 'font-size', 'font-weight', 'font-style',
+  'text-anchor', 'dominant-baseline', 'letter-spacing', 'word-spacing',
+];
+
+// SVG structural/geometry attributes per element
+const SVG_ATTRS: Record<string, string[]> = {
+  svg:              ['xmlns', 'viewBox', 'preserveAspectRatio', 'width', 'height', 'x', 'y', 'id'],
+  g:                ['id'],
+  defs:             ['id'],
+  symbol:           ['id', 'viewBox', 'preserveAspectRatio'],
+  use:              ['href', 'x', 'y', 'width', 'height'],
+  path:             ['d', 'id'],
+  rect:             ['x', 'y', 'width', 'height', 'rx', 'ry', 'id'],
+  circle:           ['cx', 'cy', 'r', 'id'],
+  ellipse:          ['cx', 'cy', 'rx', 'ry', 'id'],
+  line:             ['x1', 'y1', 'x2', 'y2', 'id'],
+  polyline:         ['points', 'id'],
+  polygon:          ['points', 'id'],
+  text:             ['x', 'y', 'dx', 'dy', 'id'],
+  tspan:            ['x', 'y', 'dx', 'dy'],
+  lineargradient:   ['id', 'gradientUnits', 'gradientTransform', 'spreadMethod', 'x1', 'y1', 'x2', 'y2'],
+  radialgradient:   ['id', 'gradientUnits', 'gradientTransform', 'spreadMethod', 'cx', 'cy', 'r', 'fx', 'fy'],
+  stop:             ['offset', 'stop-color', 'stop-opacity'],
+  clippath:         ['id', 'clipPathUnits'],
+  mask:             ['id', 'x', 'y', 'width', 'height', 'maskUnits'],
+  image:            ['href', 'x', 'y', 'width', 'height', 'preserveAspectRatio'],
+  animate:          ['attributeName', 'from', 'to', 'by', 'dur', 'repeatCount', 'values', 'keyTimes', 'keySplines', 'calcMode', 'additive', 'accumulate', 'begin', 'end'],
+  animatetransform: ['attributeName', 'type', 'from', 'to', 'by', 'dur', 'repeatCount', 'values', 'keyTimes', 'keySplines', 'calcMode', 'additive', 'accumulate', 'begin', 'end'],
+  animatemotion:    ['path', 'from', 'to', 'by', 'dur', 'repeatCount', 'values', 'keyTimes', 'keySplines', 'calcMode', 'additive', 'accumulate', 'begin', 'end'],
+};
+
 const blockOptions: sanitizeHtml.IOptions = {
-  allowedTags: [...BLOCK_TAGS, ...INLINE_TAGS],
+  allowedTags: [...BLOCK_TAGS, ...SVG_TAGS, ...INLINE_TAGS],
   allowedAttributes: {
+    '*':  SVG_PRESENTATION_ATTRS,
     ...Object.fromEntries(FORMATTED_INLINE_TAGS.map(tag => [tag, DATA_FORMAT_ATTRS])),
+    ...SVG_ATTRS,
     p:    ['data-align', ...DATA_FORMAT_ATTRS],
     th:   ['data-align', 'colspan', 'rowspan'],
     td:   ['data-align', 'colspan', 'rowspan'],
@@ -35,7 +84,8 @@ const blockOptions: sanitizeHtml.IOptions = {
   },
   allowedSchemes: ['http', 'https', 'data'],
   allowedSchemesByTag: {
-    a: ['http', 'https', '#'],
+    a:   ['http', 'https', '#'],
+    use: ['http', 'https', 'data', '#'],
   },
   allowedClasses: {
     code: ['language-*'],
@@ -46,17 +96,6 @@ const blockOptions: sanitizeHtml.IOptions = {
       if (href.startsWith('javascript:') || href.startsWith('data:')) {
         return { tagName, attribs: { ...attribs, href: '' } };
       }
-      return { tagName, attribs };
-    },
-    img: (tagName, attribs) => {
-      const src = attribs['src'] ?? '';
-      if (src.startsWith('http://') || src.startsWith('https://')) {
-        return { tagName, attribs };
-      }
-      if (src === '') {
-        return { tagName, attribs };
-      }
-      // Local path — will be converted asynchronously after sanitization
       return { tagName, attribs };
     },
     'p':  filterDataAlign,
@@ -86,10 +125,10 @@ function filterDataAlign(tagName: string, attribs: sanitizeHtml.Attributes): san
 }
 
 async function replaceLocalImages(html: string): Promise<string> {
-  // Find all img src attributes that are local paths
-  const imgRegex = /<img([^>]*)\ssrc="([^"]*)"([^>]*)>/gi;
   const replacements: Array<{ original: string; replacement: string }> = [];
 
+  // <img src="..."> — HTML image elements
+  const imgRegex = /<img([^>]*)\ssrc="([^"]*)"([^>]*)>/gi;
   let match: RegExpExecArray | null;
   while ((match = imgRegex.exec(html)) !== null) {
     const fullTag = match[0];
@@ -108,6 +147,29 @@ async function replaceLocalImages(html: string): Promise<string> {
       replacements.push({
         original: fullTag,
         replacement: fullTag.replace(`src="${src}"`, `src=""`),
+      });
+    }
+  }
+
+  // <image href="..."> — SVG image elements
+  const svgImageRegex = /<image([^>]*)\shref="([^"]*)"([^>]*?)(?:\/>|>)/gi;
+  while ((match = svgImageRegex.exec(html)) !== null) {
+    const fullTag = match[0];
+    const href = match[2];
+    if (!href || href.startsWith('http://') || href.startsWith('https://') || href.startsWith('data:') || href.startsWith('#')) {
+      continue;
+    }
+    try {
+      const dataUrl = await encodeImageToBase64(href);
+      replacements.push({
+        original: fullTag,
+        replacement: fullTag.replace(`href="${href}"`, `href="${dataUrl}"`),
+      });
+    } catch {
+      console.warn(`[sanitizer] Could not load image: ${href}`);
+      replacements.push({
+        original: fullTag,
+        replacement: fullTag.replace(`href="${href}"`, `href=""`),
       });
     }
   }
