@@ -41,8 +41,14 @@ export function dispatchTool(
 
       case 'update_slide': {
         const index = inp['index'] as number;
-        const patch = inp['patch'] as Parameters<typeof updateSlide>[2];
-        const r = updateSlide(model, index, patch);
+        const patch = inp['patch'];
+        if (typeof patch !== 'object' || patch === null || Array.isArray(patch)) {
+          return {
+            result: 'Error: patch must be a JSON object, not a string. Example: {"body": "<ul><li>item</li></ul>"}',
+            updatedModel: model,
+          };
+        }
+        const r = updateSlide(model, index, patch as Parameters<typeof updateSlide>[2]);
         if (!r.ok) return { result: `Error: ${r.error}`, updatedModel: model };
         return { result: `Slide ${index} updated successfully.`, updatedModel: r.value };
       }
