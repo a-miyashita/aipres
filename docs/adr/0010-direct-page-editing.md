@@ -86,3 +86,13 @@ The browser editing panel is architecturally appealing but requires non-trivial 
 - Users who need fine-grained direct editing should use the LLM (accepting the current cost/latency) until a VSCode extension is available.
 - A future VSCode extension using the aipres library is the recommended path for rich direct editing. The library's module boundaries (`src/model/`, `src/renderer/`) should be maintained as clean, CLI-independent interfaces to facilitate this.
 - The cost/latency problem for micro-corrections may be partially addressed by improving LLM prompt efficiency or model selection, independent of this decision.
+
+## Existing Escape Hatches
+
+Two direct editing paths already exist without any new feature work:
+
+**`current.json` (source of truth, mid-session edits):** The active session's slide model at `~/.aipres/state/<session>/slides.json` can be opened in any text editor. Because the preview server watches this file via chokidar, saving a change immediately triggers a hot-reload in the browser. This is the appropriate path for users who need to make precise edits during a working session. Caveats: the file contains HTML strings embedded in JSON (requiring JSON escaping); the Zod schema is only validated when aipres next reads the file; and the LLM's chat history will not reflect edits made this way.
+
+**`presentation.html` (final output, delivery-time edits):** The exported HTML file contains clean, readable Reveal.js `<section>` markup. Editing it directly is practical for last-minute corrections before delivery. This is a deliberate fork: the file becomes out of sync with `current.json`, and any subsequent `aipres chat` session that regenerates the HTML will overwrite the manual changes. It is suitable only when no further aipres-driven edits are expected.
+
+The existence of these two paths reinforces the decision not to build a dedicated editing interface into the CLI: users who need direct access already have it through standard tools.
