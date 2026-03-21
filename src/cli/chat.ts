@@ -35,6 +35,7 @@ function printHelp(): void {
   console.log(chalk.cyan('\nAvailable commands:'));
   console.log('  /quit, /exit         - End the session');
   console.log('  /reset               - Reset slides to empty');
+  console.log('  /reload              - Reload slides from disk (pick up external edits)');
   console.log('  /export [file]       - Export to HTML file');
   console.log('  /summary             - Show current slide list');
   console.log('  /pres                - Show current presentation');
@@ -126,6 +127,13 @@ export async function runChat(opts: RunChatOptions = {}): Promise<void> {
           if (cmd === '/quit' || cmd === '/exit') {
             console.log(chalk.dim('\nSession ended. Slides saved.'));
             rl.close();
+            return;
+          }
+
+          if (cmd === '/reload') {
+            model = await loadState(currentName);
+            logger.success(`Reloaded. ${model.slides.length} slide(s).`);
+            prompt();
             return;
           }
 
