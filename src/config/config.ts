@@ -7,6 +7,7 @@ import { getApiKey, setApiKey } from './keychain.js';
 
 export const DEFAULT_CONFIG: Config = {
   llm: {
+    provider: 'anthropic',
     model: 'claude-sonnet-4-5',
     language: 'ja',
   },
@@ -69,23 +70,30 @@ export async function loadConfig(): Promise<ResolvedConfig> {
   let merged = deepMerge(DEFAULT_CONFIG, fileConfig as Partial<Config>);
 
   // Apply environment variables
-  if (process.env['PRESO_LANGUAGE']) {
-    merged = deepMerge(merged, { llm: { ...merged.llm, language: process.env['PRESO_LANGUAGE'] } });
+  if (process.env['AIPRES_PROVIDER']) {
+    merged = deepMerge(merged, { llm: { ...merged.llm, provider: process.env['AIPRES_PROVIDER'] as Config['llm']['provider'] } });
   }
-  if (process.env['PRESO_MODEL']) {
-    merged = deepMerge(merged, { llm: { ...merged.llm, model: process.env['PRESO_MODEL'] } });
+  if (process.env['AIPRES_LANGUAGE']) {
+    merged = deepMerge(merged, { llm: { ...merged.llm, language: process.env['AIPRES_LANGUAGE'] } });
+  }
+  if (process.env['AIPRES_MODEL']) {
+    merged = deepMerge(merged, { llm: { ...merged.llm, model: process.env['AIPRES_MODEL'] } });
+  }
+  if (process.env['AIPRES_BASE_URL']) {
+    merged = deepMerge(merged, { llm: { ...merged.llm, baseUrl: process.env['AIPRES_BASE_URL'] } });
   }
 
-  // Resolve API key: env var > keychain
+  // Resolve API key: env var > keychain (provider-specific)
   let apiKey = '';
-  if (process.env['ANTHROPIC_API_KEY']) {
-    apiKey = process.env['ANTHROPIC_API_KEY'];
-  } else {
-    const keychainKey = await getApiKey('anthropic');
-    if (keychainKey) {
-      apiKey = keychainKey;
-    }
+  const provider = merged.llm.provider;
+  if (provider === 'anthropic') {
+    apiKey = process.env['ANTHROPIC_API_KEY'] ?? (await getApiKey('anthropic')) ?? '';
+  } else if (provider === 'openai') {
+    apiKey = process.env['OPENAI_API_KEY'] ?? (await getApiKey('openai')) ?? '';
+  } else if (provider === 'copilot') {
+    apiKey = process.env['GITHUB_TOKEN'] ?? (await getApiKey('copilot')) ?? '';
   }
+  // 'local' requires no API key
 
   return {
     ...merged,
@@ -141,7 +149,10 @@ export async function getConfigValue(key: string): Promise<unknown> {
 export async function setConfigValue(key: string, value: unknown): Promise<void> {
   const keys = key.split('.');
   if (keys[0] === 'llm' && keys[1] === 'apiKey') {
-    await setApiKey('anthropic', String(value));
+    const fileConfig = await loadConfigFile();
+    const provider = (fileConfig as Partial<Config>).llm?.provider ?? DEFAULT_CONFIG.llm.provider;
+    const keychainKey = provider === 'copilot' ? 'copilot' : provider === 'openai' ? 'openai' : 'anthropic';
+    await setApiKey(keychainKey, String(value));
     return;
   }
 

@@ -1,15 +1,15 @@
 import { loadConfig } from '../config/config.js';
-import { loadState, ensureActiveSession, getSlidesPath } from '../model/state.js';
+import { loadState, getSlidesPath } from '../model/state.js';
 import { createServer } from '../preview/server.js';
 import { startWatcher } from '../preview/watcher.js';
 import { logger } from '../utils/logger.js';
 
-export async function runPreview(opts: { port?: number } = {}): Promise<void> {
+export async function runPreview(opts: { port?: number; workDir: string }): Promise<void> {
   const config = await loadConfig();
   const port = opts.port ?? config.preview.port;
+  const { workDir } = opts;
 
-  const activeName = await ensureActiveSession();
-  const model = await loadState(activeName);
+  const model = await loadState(workDir);
 
   const server = createServer(model, config, port);
 
@@ -18,7 +18,7 @@ export async function runPreview(opts: { port?: number } = {}): Promise<void> {
     logger.dim('Watching for changes... Press Ctrl-C to stop.');
   });
 
-  startWatcher(getSlidesPath(activeName));
+  startWatcher(getSlidesPath(workDir));
 
   if (config.preview.autoOpen) {
     const { default: open } = await import('open');

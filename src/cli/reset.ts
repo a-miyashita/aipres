@@ -1,7 +1,7 @@
-import { resetState } from '../model/state.js';
+import { resetState, resetSession } from '../model/state.js';
 import { logger } from '../utils/logger.js';
 
-export async function runReset(opts: { force?: boolean } = {}): Promise<void> {
+export async function runReset(opts: { force?: boolean; workDir: string }): Promise<void> {
   if (!opts.force) {
     const { default: inquirer } = await import('inquirer');
     const { confirm } = await inquirer.prompt([
@@ -18,6 +18,7 @@ export async function runReset(opts: { force?: boolean } = {}): Promise<void> {
     }
   }
 
-  await resetState();
+  await resetState(opts.workDir);
+  await resetSession(opts.workDir);
   logger.success('Slides reset to empty.');
 }
