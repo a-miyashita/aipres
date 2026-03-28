@@ -397,27 +397,11 @@ self-closed. Do not leave unclosed tags.
 
 ---
 
-## Migration from Markdown
+## Legacy Markdown Fallback
 
-When this spec is implemented, the following migration strategy applies:
+Existing `slides.json` files may contain Markdown in content fields (from versions prior to the HTML subset). At render time, fields are detected by content type:
 
-1. **New sessions**: LLM writes HTML subset from day one (system prompt updated).
-2. **Existing `state/current.json`**: On load, detect content type per field:
-   - If the value contains `<` → treat as HTML subset
-   - If the value contains no `<` → treat as legacy Markdown, render via `marked`
-   - Legacy path remains in `templates.ts` until the user runs `aipres reset`
-3. **Session history**: Tool call arguments in `session.json` may contain legacy Markdown. The legacy detection path handles them transparently at render time.
+- Value contains `<` → treated as HTML subset, sanitized via allowlist
+- Value contains no `<` → treated as legacy Markdown, rendered via `marked`
 
----
-
-## Implementation Checklist
-
-- [x] `src/model/types.ts` — Add JSDoc noting `body`, `title`, etc. now accept HTML subset
-- [x] `src/model/types.ts` / `theme.json` schema — Add `palette` field to `ThemeDefinition`
-- [x] `src/theme/defaults.ts` — Add `palette` to default theme JSON; palette CSS vars generated dynamically via `generatePaletteCss()` and injected at render time
-- [x] `src/renderer/sanitizer.ts` (new) — Wrap `sanitize-html` with the allowlist; handle local image → base64 conversion
-- [x] `src/renderer/templates.ts` — Replace `marked.parse()` with sanitizer passthrough + legacy Markdown fallback (detect by presence of `<`)
-- [x] `src/llm/tools.ts` — Update `input_schema` descriptions for `title`, `subtitle`, `body`, `leftCol`, `rightCol` in `add_slide` / `update_slide`
-- [x] `src/llm/tools.ts` — Update `buildSystemPrompt()` with HTML subset + color policy instructions
-- [x] Add npm dependency: `sanitize-html`
-- [x] Tests: sanitizer allowlist, legacy Markdown fallback, local image base64, hex color passthrough
+This detection is transparent and requires no user action.
