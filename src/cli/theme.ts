@@ -1,13 +1,14 @@
+import * as path from 'path';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
-import { listThemes, addTheme, createTheme, deleteTheme } from '../theme/manager.js';
-import { loadState } from '../model/state.js';
+import { listThemes, addTheme, createTheme, createThemeAt, isThemePath, deleteTheme } from '../theme/manager.js';
+import { loadState, saveState } from '../model/state.js';
 import { logger } from '../utils/logger.js';
 export { runThemeEdit } from './theme-editor.js';
 
-export async function runThemeList(): Promise<void> {
+export async function runThemeList(opts: { workDir: string }): Promise<void> {
   const themes = await listThemes();
-  const model = await loadState();
+  const model = await loadState(opts.workDir);
   const current = model.theme;
 
   if (themes.length === 0) {
@@ -33,10 +34,20 @@ export async function runThemeAdd(themePath: string): Promise<void> {
   }
 }
 
-export async function runThemeNew(name: string): Promise<void> {
+export async function runThemeNew(name: string, opts: { workDir: string }): Promise<void> {
   try {
-    await createTheme(name);
-    logger.success(`Theme "${name}" created. Edit it with: aipres theme edit ${name}`);
+    if (isThemePath(name)) {
+      const dirPath = path.resolve(opts.workDir, name);
+      await createThemeAt(dirPath);
+      const model = await loadState(opts.workDir);
+      await saveState({ ...model, theme: name }, opts.workDir);
+      logger.success(`Theme created at ${name}/`);
+      logger.dim(`slides.json updated: "theme": "${name}"`);
+      logger.dim(`Run: aipres theme edit to start customising`);
+    } else {
+      await createTheme(name);
+      logger.success(`Theme "${name}" created. Edit it with: aipres theme edit`);
+    }
   } catch (err) {
     logger.error(err instanceof Error ? err.message : String(err));
     process.exit(1);

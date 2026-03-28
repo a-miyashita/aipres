@@ -1,6 +1,5 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import * as os from 'os';
 import type { SlideModel, ResolvedConfig } from '../model/types.js';
 import { renderSlide } from './templates.js';
 import { loadRevealJs, loadRevealCss, loadRevealThemeCss, loadThemeCss } from './assets.js';
@@ -30,19 +29,20 @@ const HOT_RELOAD_SCRIPT = (port: number) => `
 export async function renderPresentation(
   model: SlideModel,
   config: ResolvedConfig,
-  opts?: { hotReload?: boolean; port?: number }
+  opts?: { hotReload?: boolean; port?: number; workDir?: string }
 ): Promise<string> {
+  const workDir = opts?.workDir ?? process.cwd();
+
   // Load theme
   let themeDef = DEFAULT_THEME_JSON;
   let customCss = DEFAULT_THEME_CSS;
 
   try {
-    const loadedTheme = await loadTheme(model.theme);
-    themeDef = loadedTheme;
-    if (themeDef.customCss) {
-      const themeDir = path.join(os.homedir(), '.aipres', 'themes', model.theme);
-      const loaded = await loadThemeCss(themeDef, themeDir);
-      customCss = loaded || SHARED_LAYOUT_CSS;
+    const loaded = await loadTheme(model.theme, workDir);
+    themeDef = loaded.def;
+    if (themeDef.customCss && loaded.dir) {
+      const css = await loadThemeCss(themeDef, loaded.dir);
+      customCss = css || SHARED_LAYOUT_CSS;
     } else {
       // 'black' shares the same rich dark styling as 'default'
       // All other built-in themes use shared layout only (preserving Reveal.js theme colors)
@@ -105,9 +105,10 @@ ${revealJs}
 export async function writeHtml(
   model: SlideModel,
   outputPath: string,
-  config: ResolvedConfig
+  config: ResolvedConfig,
+  workDir?: string
 ): Promise<void> {
-  const html = await renderPresentation(model, config);
+  const html = await renderPresentation(model, config, { workDir });
   const absPath = path.resolve(outputPath);
   await fs.mkdir(path.dirname(absPath), { recursive: true });
   await fs.writeFile(absPath, html, 'utf-8');

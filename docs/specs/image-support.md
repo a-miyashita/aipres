@@ -258,16 +258,3 @@ Because theme CSS is inlined into the generated HTML `<style>` block, relative p
 - If a referenced file cannot be read, the original `url(...)` is left unchanged
 - Implemented in `src/renderer/assets.ts` (`loadThemeCss`)
 
----
-
-## 9. Summary of Changes
-
-| Area | Change |
-|------|--------|
-| `src/llm/provider.ts` | Add `source?` field to `ContentBlock` for image blocks |
-| `src/cli/image-resolver.ts` | New module: path detection, resolution, multimodal message builder |
-| `src/cli/chat.ts` | Build `ContentBlock[]` message when images are detected |
-| `src/llm/tools.ts` | Add image and SVG usage instructions to system prompt |
-| `src/renderer/sanitizer.ts` | Add SVG element/attribute allowlist; confirm `data:` passthrough |
-| `src/renderer/templates.ts` | Confirm `data:` URL passthrough in `imageUrl` rendering |
-| `docs/specs/rich-text.md` | Add `<svg>` block element and SVG allowlist |

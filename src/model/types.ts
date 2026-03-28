@@ -53,10 +53,14 @@ export interface ThemeDefinition {
   };
 }
 
+export type LLMProvider = 'anthropic' | 'openai' | 'copilot' | 'local';
+
 export interface Config {
   llm: {
+    provider: LLMProvider;
     model: string;
     language: string;
+    baseUrl?: string;
   };
   preview: {
     port: number;
@@ -111,8 +115,10 @@ export const SlideModelSchema = z.object({
 
 export const ConfigSchema = z.object({
   llm: z.object({
+    provider: z.enum(['anthropic', 'openai', 'copilot', 'local']).default('anthropic'),
     model: z.string(),
     language: z.string(),
+    baseUrl: z.string().optional(),
   }),
   preview: z.object({
     port: z.number(),

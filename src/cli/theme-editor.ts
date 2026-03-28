@@ -5,9 +5,10 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { loadConfig } from '../config/config.js';
 import { needsSetup, runSetupWizard } from '../config/setup.js';
-import { loadTheme, getThemesDir } from '../theme/manager.js';
+import { loadTheme, isThemePath, copyThemeDir } from '../theme/manager.js';
+import { loadState, saveState } from '../model/state.js';
 import { SAMPLE_SLIDES, buildSampleDescription } from '../theme/samples.js';
-import { AnthropicProvider } from '../llm/anthropic.js';
+import { createProvider } from '../llm/factory.js';
 import {
   buildThemeSystemPrompt,
   runThemeToolUseLoop,
@@ -15,7 +16,7 @@ import {
 import { createServer } from '../preview/server.js';
 import { logger } from '../utils/logger.js';
 import type { Message } from '../llm/provider.js';
-import type { ThemeDefinition } from '../model/types.js';
+import type { SlideModel, ThemeDefinition } from '../model/types.js';
 
 function divider(label: string, color: (s: string) => string): string {
   const width = process.stdout.columns || 80;
@@ -51,39 +52,94 @@ async function restoreThemeFiles(themeDir: string, snapshot: { json: string; css
   return JSON.parse(snapshot.json) as ThemeDefinition;
 }
 
-export async function runThemeEdit(themeName: string, opts: { port?: number } = {}): Promise<void> {
+export async function runThemeEdit(opts: { workDir: string; port?: number; force?: boolean }): Promise<void> {
   if (await needsSetup()) {
     await runSetupWizard();
   }
 
   const config = await loadConfig();
 
-  if (!config.llm.apiKey) {
+  if (!config.llm.apiKey && config.llm.provider !== 'local') {
     logger.error('API key not configured. Run: aipres config set llm.apiKey <your-key>');
     process.exit(1);
   }
 
-  let themeDef: ThemeDefinition;
+  const { workDir } = opts;
+
+  // Read current theme from slides.json
+  const model = await loadState(workDir);
+  const themeValue = model.theme;
+
+  // Load theme to classify it
+  let loaded;
   try {
-    themeDef = await loadTheme(themeName);
-  } catch {
-    logger.error(`Theme "${themeName}" not found. Create it first with: aipres theme new ${themeName}`);
+    loaded = await loadTheme(themeValue, workDir);
+  } catch (err) {
+    logger.error(`Theme "${themeValue}" not found: ${err instanceof Error ? err.message : String(err)}`);
     process.exit(1);
   }
 
-  // Built-in themes have no directory — require an installed theme
-  const themeDir = path.join(getThemesDir(), themeName);
-  try {
-    await fs.stat(themeDir);
-  } catch {
-    logger.error(`"${themeName}" is a built-in theme and cannot be edited directly. Create a copy with: aipres theme new <name>`);
+  let { def: themeDef, dir: themeDir } = loaded;
+
+  // Built-in theme (no directory) — cannot edit
+  if (themeDir === null) {
+    logger.error(`"${themeValue}" is a built-in theme and cannot be edited directly.`);
+    logger.error(`Create a custom copy with: aipres theme new <name>`);
+    logger.error(`Then set it in your slides.json: "theme": "<name>"`);
     process.exit(1);
+  }
+
+  let effectiveThemeValue = themeValue;
+
+  // Global theme (name-based, not a path) — offer localize / global-edit / cancel
+  if (!isThemePath(themeValue) && !opts.force) {
+    logger.warn(`"${themeValue}" is a global theme stored in ~/.aipres/themes/${themeValue}/`);
+    logger.warn('Editing it will affect all projects that use this theme.');
+    const { default: inquirer } = await import('inquirer');
+    const { choice } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'choice',
+        message: 'What would you like to do?',
+        choices: [
+          { name: 'Copy to ./theme/ and edit locally (this project only)', value: 'copy' },
+          { name: 'Edit the global theme (affects all projects that use it)', value: 'global' },
+          { name: 'Cancel', value: 'cancel' },
+        ],
+      },
+    ]);
+
+    if (choice === 'cancel') {
+      logger.info('Cancelled.');
+      return;
+    }
+
+    if (choice === 'copy') {
+      const destDir = path.join(workDir, 'theme');
+      try {
+        await copyThemeDir(themeDir, destDir);
+      } catch {
+        logger.error('./theme/ already exists. Delete it first or switch to it with: aipres config set theme ./theme');
+        process.exit(1);
+      }
+      const currentModel = await loadState(workDir);
+      await saveState({ ...currentModel, theme: './theme' }, workDir);
+      logger.success('Theme copied to ./theme/');
+      logger.dim('slides.json updated: "theme": "./theme"');
+      themeDir = destDir;
+      effectiveThemeValue = './theme';
+      const reloaded = await loadTheme('./theme', workDir);
+      loaded = reloaded;
+      themeDef = reloaded.def;
+    }
+    // else 'global': fall through to edit in place
   }
 
   const port = opts.port ?? config.preview.port;
-  const sampleModel = { ...SAMPLE_SLIDES, theme: themeName };
+  const baseModel: SlideModel = model.slides.length > 0 ? model : SAMPLE_SLIDES;
+  const previewModel = { ...baseModel, theme: effectiveThemeValue };
 
-  const server = createServer(sampleModel, config, port);
+  const server = createServer(previewModel, config, port, workDir);
   server.listen(port, () => {
     logger.success(`Preview server running at http://localhost:${port}`);
     logger.dim('Showing sample slides with the current theme.');
@@ -95,14 +151,16 @@ export async function runThemeEdit(themeName: string, opts: { port?: number } = 
   }
 
   // Take snapshot for /reset
-  const snapshot = await readThemeFiles(themeDir, themeDef);
-  const cssFilename = themeDef.customCss || 'custom.css';
+  let currentDef = themeDef;
+  const snapshot = await readThemeFiles(themeDir, currentDef);
+  const cssFilename = currentDef.customCss || 'custom.css';
 
   const systemPrompt = buildThemeSystemPrompt(config.llm.language, buildSampleDescription());
-  const provider = new AnthropicProvider(config.llm.apiKey, config.llm.model);
+  const provider = createProvider(config);
   const messages: Message[] = [];
 
-  console.log(chalk.green(`\nTheme editor: ${themeName}`));
+  const displayName = isThemePath(effectiveThemeValue) ? effectiveThemeValue : currentDef.displayName ?? currentDef.name;
+  console.log(chalk.green(`\nTheme editor: ${displayName}`));
   console.log(chalk.dim('Describe the look you want. Type /help for commands. Ctrl-C to quit.\n'));
 
   const rl = readline.createInterface({
@@ -134,7 +192,7 @@ export async function runThemeEdit(themeName: string, opts: { port?: number } = 
           if (cmd === '/reset') {
             const spinner = ora({ text: 'Restoring...', discardStdin: false }).start();
             try {
-              themeDef = await restoreThemeFiles(themeDir, snapshot, cssFilename);
+              currentDef = await restoreThemeFiles(themeDir, snapshot, cssFilename);
               messages.length = 0;
               const { broadcast } = await import('../preview/server.js');
               broadcast({ type: 'reload' });
@@ -165,8 +223,8 @@ export async function runThemeEdit(themeName: string, opts: { port?: number } = 
           spinner.stop();
           process.stdout.write(divider('Assistant', chalk.bold.green));
 
-          const result = await runThemeToolUseLoop(systemPrompt, messages, themeDef, themeDir, provider);
-          themeDef = result.updatedDef;
+          const result = await runThemeToolUseLoop(systemPrompt, messages, currentDef, themeDir, provider);
+          currentDef = result.updatedDef;
           messages.length = 0;
           messages.push(...result.messages);
         } catch (err) {

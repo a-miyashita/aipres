@@ -7,8 +7,19 @@ import { ThemeError } from '../utils/errors.js';
 
 const THEME_NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$/;
 
+export interface LoadedTheme {
+  def: ThemeDefinition;
+  /** Absolute path to the theme directory. null for built-in themes that have no directory. */
+  dir: string | null;
+}
+
 export function getThemesDir(): string {
   return path.join(os.homedir(), '.aipres', 'themes');
+}
+
+/** Returns true if the value should be treated as a filesystem path rather than a theme name. */
+export function isThemePath(value: string): boolean {
+  return path.isAbsolute(value) || value.startsWith('./') || value.startsWith('../');
 }
 
 export async function listThemes(): Promise<ThemeDefinition[]> {
@@ -45,15 +56,41 @@ async function loadInstalledTheme(name: string): Promise<ThemeDefinition> {
   return JSON.parse(content) as ThemeDefinition;
 }
 
-export async function loadTheme(name: string): Promise<ThemeDefinition> {
-  try {
-    return await loadInstalledTheme(name);
-  } catch {
-    // Fall back to built-in themes
-    const builtin = BUILTIN_THEMES.find(t => t.name === name);
-    if (builtin) return builtin;
-    throw new ThemeError(`Theme "${name}" not found. Use "aipres theme list" to see available themes.`);
+async function loadThemeFromDir(dir: string): Promise<ThemeDefinition> {
+  const themeJsonPath = path.join(dir, 'theme.json');
+  const content = await fs.readFile(themeJsonPath, 'utf-8');
+  return JSON.parse(content) as ThemeDefinition;
+}
+
+/**
+ * Load a theme by value (name or path) and return the definition with its directory.
+ * - Path (starts with ./, ../, or /): resolved relative to workDir and loaded directly.
+ * - Name: looked up in ~/.aipres/themes/<name>/, then in Reveal.js built-ins.
+ */
+export async function loadTheme(value: string, workDir: string): Promise<LoadedTheme> {
+  if (isThemePath(value)) {
+    const dir = path.resolve(workDir, value);
+    try {
+      const def = await loadThemeFromDir(dir);
+      return { def, dir };
+    } catch {
+      throw new ThemeError(`Theme directory "${dir}" not found or missing theme.json.`);
+    }
   }
+
+  // Name-based: try global user theme first
+  const globalDir = path.join(getThemesDir(), value);
+  try {
+    const def = await loadInstalledTheme(value);
+    return { def, dir: globalDir };
+  } catch {
+    // Fall through to built-ins
+  }
+
+  const builtin = BUILTIN_THEMES.find(t => t.name === value);
+  if (builtin) return { def: builtin, dir: null };
+
+  throw new ThemeError(`Theme "${value}" not found. Use "aipres theme list" to see available themes.`);
 }
 
 export function validateThemeName(name: string): string | null {
@@ -99,6 +136,50 @@ export async function deleteTheme(name: string): Promise<void> {
     throw new ThemeError(`Theme "${name}" not found.`);
   }
   await fs.rm(themeDir, { recursive: true, force: true });
+}
+
+export async function createThemeAt(dirPath: string): Promise<void> {
+  try {
+    await fs.stat(dirPath);
+    throw new ThemeError(`"${dirPath}" already exists. Choose a different path or delete it first.`);
+  } catch (e) {
+    if (e instanceof ThemeError) throw e;
+    // Directory does not exist — proceed
+  }
+
+  await fs.mkdir(dirPath, { recursive: true });
+
+  const name = path.basename(dirPath);
+  const themeDef: ThemeDefinition = {
+    ...DEFAULT_THEME_JSON,
+    name,
+    displayName: name,
+    description: '',
+  };
+  await fs.writeFile(path.join(dirPath, 'theme.json'), JSON.stringify(themeDef, null, 2), 'utf-8');
+  await fs.writeFile(path.join(dirPath, 'custom.css'), DEFAULT_THEME_CSS, 'utf-8');
+}
+
+export async function copyThemeDir(srcDir: string, destDir: string): Promise<void> {
+  try {
+    await fs.stat(destDir);
+    throw new ThemeError(`"${destDir}" already exists.`);
+  } catch (e) {
+    if (e instanceof ThemeError) throw e;
+    // Directory does not exist — proceed
+  }
+
+  await fs.mkdir(destDir, { recursive: true });
+
+  const entries = await fs.readdir(srcDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.isFile()) {
+      await fs.copyFile(
+        path.join(srcDir, entry.name),
+        path.join(destDir, entry.name)
+      );
+    }
+  }
 }
 
 export async function addTheme(sourcePath: string): Promise<void> {
