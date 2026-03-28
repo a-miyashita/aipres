@@ -5,8 +5,8 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { loadConfig } from '../config/config.js';
 import { needsSetup, runSetupWizard } from '../config/setup.js';
-import { loadTheme, isThemePath } from '../theme/manager.js';
-import { loadState } from '../model/state.js';
+import { loadTheme, isThemePath, copyThemeDir } from '../theme/manager.js';
+import { loadState, saveState } from '../model/state.js';
 import { SAMPLE_SLIDES, buildSampleDescription } from '../theme/samples.js';
 import { createProvider } from '../llm/factory.js';
 import {
@@ -79,7 +79,7 @@ export async function runThemeEdit(opts: { workDir: string; port?: number; force
     process.exit(1);
   }
 
-  const { def: themeDef, dir: themeDir } = loaded;
+  let { def: themeDef, dir: themeDir } = loaded;
 
   // Built-in theme (no directory) — cannot edit
   if (themeDir === null) {
@@ -89,28 +89,55 @@ export async function runThemeEdit(opts: { workDir: string; port?: number; force
     process.exit(1);
   }
 
-  // Global theme (name-based, not a path) — warn before editing
+  let effectiveThemeValue = themeValue;
+
+  // Global theme (name-based, not a path) — offer localize / global-edit / cancel
   if (!isThemePath(themeValue) && !opts.force) {
     logger.warn(`"${themeValue}" is a global theme stored in ~/.aipres/themes/${themeValue}/`);
     logger.warn('Editing it will affect all projects that use this theme.');
     const { default: inquirer } = await import('inquirer');
-    const { confirm } = await inquirer.prompt([
+    const { choice } = await inquirer.prompt([
       {
-        type: 'confirm',
-        name: 'confirm',
-        message: 'Continue editing the global theme?',
-        default: false,
+        type: 'list',
+        name: 'choice',
+        message: 'What would you like to do?',
+        choices: [
+          { name: 'Copy to ./theme/ and edit locally (this project only)', value: 'copy' },
+          { name: 'Edit the global theme (affects all projects that use it)', value: 'global' },
+          { name: 'Cancel', value: 'cancel' },
+        ],
       },
     ]);
-    if (!confirm) {
-      logger.info('Cancelled. To edit a project-local theme, set "theme" to a path like "./theme" in slides.json.');
+
+    if (choice === 'cancel') {
+      logger.info('Cancelled.');
       return;
     }
+
+    if (choice === 'copy') {
+      const destDir = path.join(workDir, 'theme');
+      try {
+        await copyThemeDir(themeDir, destDir);
+      } catch {
+        logger.error('./theme/ already exists. Delete it first or switch to it with: aipres config set theme ./theme');
+        process.exit(1);
+      }
+      const currentModel = await loadState(workDir);
+      await saveState({ ...currentModel, theme: './theme' }, workDir);
+      logger.success('Theme copied to ./theme/');
+      logger.dim('slides.json updated: "theme": "./theme"');
+      themeDir = destDir;
+      effectiveThemeValue = './theme';
+      const reloaded = await loadTheme('./theme', workDir);
+      loaded = reloaded;
+      themeDef = reloaded.def;
+    }
+    // else 'global': fall through to edit in place
   }
 
   const port = opts.port ?? config.preview.port;
   const baseModel: SlideModel = model.slides.length > 0 ? model : SAMPLE_SLIDES;
-  const previewModel = { ...baseModel, theme: themeValue };
+  const previewModel = { ...baseModel, theme: effectiveThemeValue };
 
   const server = createServer(previewModel, config, port, workDir);
   server.listen(port, () => {
@@ -132,7 +159,7 @@ export async function runThemeEdit(opts: { workDir: string; port?: number; force
   const provider = createProvider(config);
   const messages: Message[] = [];
 
-  const displayName = isThemePath(themeValue) ? themeValue : currentDef.displayName ?? currentDef.name;
+  const displayName = isThemePath(effectiveThemeValue) ? effectiveThemeValue : currentDef.displayName ?? currentDef.name;
   console.log(chalk.green(`\nTheme editor: ${displayName}`));
   console.log(chalk.dim('Describe the look you want. Type /help for commands. Ctrl-C to quit.\n'));
 

@@ -138,6 +138,50 @@ export async function deleteTheme(name: string): Promise<void> {
   await fs.rm(themeDir, { recursive: true, force: true });
 }
 
+export async function createThemeAt(dirPath: string): Promise<void> {
+  try {
+    await fs.stat(dirPath);
+    throw new ThemeError(`"${dirPath}" already exists. Choose a different path or delete it first.`);
+  } catch (e) {
+    if (e instanceof ThemeError) throw e;
+    // Directory does not exist — proceed
+  }
+
+  await fs.mkdir(dirPath, { recursive: true });
+
+  const name = path.basename(dirPath);
+  const themeDef: ThemeDefinition = {
+    ...DEFAULT_THEME_JSON,
+    name,
+    displayName: name,
+    description: '',
+  };
+  await fs.writeFile(path.join(dirPath, 'theme.json'), JSON.stringify(themeDef, null, 2), 'utf-8');
+  await fs.writeFile(path.join(dirPath, 'custom.css'), DEFAULT_THEME_CSS, 'utf-8');
+}
+
+export async function copyThemeDir(srcDir: string, destDir: string): Promise<void> {
+  try {
+    await fs.stat(destDir);
+    throw new ThemeError(`"${destDir}" already exists.`);
+  } catch (e) {
+    if (e instanceof ThemeError) throw e;
+    // Directory does not exist — proceed
+  }
+
+  await fs.mkdir(destDir, { recursive: true });
+
+  const entries = await fs.readdir(srcDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.isFile()) {
+      await fs.copyFile(
+        path.join(srcDir, entry.name),
+        path.join(destDir, entry.name)
+      );
+    }
+  }
+}
+
 export async function addTheme(sourcePath: string): Promise<void> {
   const absSource = path.resolve(sourcePath);
   const themeJsonPath = path.join(absSource, 'theme.json');

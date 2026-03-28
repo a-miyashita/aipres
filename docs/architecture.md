@@ -50,7 +50,7 @@ Commander.js entry point. Defines all CLI commands and wires them to `src/cli/*`
 | `export.ts` | `aipres export` | One-shot HTML render to file. |
 | `config.ts` | `aipres config *` | Config CRUD via dot-notation keys. |
 | `theme.ts` | `aipres theme *` | Theme listing, import, creation, and deletion handlers. |
-| `theme-editor.ts` | `aipres theme edit` | LLM-assisted theme editing mode: reads current theme from `slides.json`, classifies as built-in (error), global (warning + confirm), or path-based (direct edit); preview server with sample slides, snapshot-based `/reset`. |
+| `theme-editor.ts` | `aipres theme edit` | LLM-assisted theme editing mode: reads current theme from `slides.json`, classifies as built-in (error), global (3-choice: copy-to-local / global-edit / cancel), or path-based (direct edit); preview server with sample slides, snapshot-based `/reset`. |
 | `reset.ts` | `aipres reset` | Clears slide state and chat history with confirmation. |
 
 ### `src/llm/`

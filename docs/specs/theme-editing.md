@@ -8,20 +8,35 @@ Enable LLM-assisted theme creation and editing via a dedicated theme editing mod
 
 ## 1. New CLI Commands
 
-### `aipres theme new <name>`
+### `aipres theme new <name-or-path> [-w <workDir>]`
 
 Creates a new user theme based on the built-in `default` theme.
 
-- Validates `<name>` using the same pattern as session names: `^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$`
-- Creates `~/.aipres/themes/<name>/theme.json` and `custom.css` by copying from the built-in default
+**Global theme** (name without path separators, e.g. `my-theme`):
+- Validates `<name>` against `^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$`
+- Creates `~/.aipres/themes/<name>/theme.json` and `custom.css`
 - Errors if a theme with that name already exists
-- Does **not** automatically enter edit mode; the user runs `aipres theme edit <name>` separately
 
-### `aipres theme edit <name>`
+**Project-local theme** (path starting with `./`, `../`, or `/`, e.g. `./theme`):
+- Creates the theme directory and files at the resolved path (relative to `workDir`)
+- Errors if the target directory already exists
+- Updates `slides.json` in `workDir`: sets `"theme"` to the given path string (e.g. `"./theme"`)
+- If `slides.json` is absent, creates it with default model and the new theme value
 
-Enters theme editing mode for the named theme.
+Does **not** automatically enter edit mode; the user runs `aipres theme edit` separately.
 
-- Errors if the theme does not exist (user must run `aipres theme new <name>` first)
+### `aipres theme edit [-w <workDir>]`
+
+Enters theme editing mode for the theme currently set in `slides.json`.
+
+- Reads the `theme` field from `slides.json` in `workDir`
+- **Built-in theme**: errors and suggests `aipres theme new <name>` to create a custom copy
+- **Global theme** (name-based, no `--force`): shows a three-choice prompt:
+  1. **Copy to `./theme/` and edit locally** — copies the global theme into `<workDir>/theme/`, updates `slides.json` to `"theme": "./theme"`, then enters edit mode targeting the local copy
+  2. **Edit the global theme** — edits in place in `~/.aipres/themes/<name>/` (affects all projects)
+  3. **Cancel** — exits without changes
+  `--force` skips the prompt and defaults to global edit
+- **Path-based theme** (`./theme`, `../shared/corp`, etc.): directly enters edit mode on the resolved directory, no confirmation needed
 - Starts the preview server on the configured port (default 3000) serving the sample slides (see §3) rendered with the target theme
 - Starts the interactive chat loop with the theme editing system prompt (see §4)
 - On exit (`/quit`, `/exit`, Ctrl-C), preview server is shut down and the final theme state on disk is the persisted result

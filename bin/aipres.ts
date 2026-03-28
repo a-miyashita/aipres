@@ -93,9 +93,10 @@ themeCmd
 
 themeCmd
   .command('new <name>')
-  .description('Create a new theme based on the default')
-  .action(async (name: string) => {
-    await runThemeNew(name);
+  .description('Create a new theme based on the default (use a path like ./theme for project-local)')
+  .option('-w, --work-dir <path>', 'Working directory (for project-local theme creation)')
+  .action(async (name: string, opts) => {
+    await runThemeNew(name, { workDir: resolveWorkDir(opts.workDir) });
   });
 
 themeCmd
