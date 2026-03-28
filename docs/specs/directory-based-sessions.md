@@ -155,7 +155,9 @@ The LLM sets the theme via the `set_theme` tool, which writes to `slides.json`. 
 aipres theme edit [-w <path>] [--port <n>] [--force]
 ```
 
-`aipres theme edit` no longer takes a theme name argument. It reads `slides.json.theme` from `workDir` and resolves the theme type:
+`aipres theme edit` no longer takes a theme name argument. It reads `slides.json.theme` from `workDir` and resolves the theme type.
+
+**Preview content:** The preview server shows the slides from `<workDir>/slides.json` (with the theme under edit applied). If `slides.json` does not exist or contains no slides, it falls back to `SAMPLE_SLIDES` so there is always something visible.
 
 | Theme type | Condition | Behaviour |
 |------------|-----------|-----------|

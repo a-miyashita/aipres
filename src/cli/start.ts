@@ -12,7 +12,7 @@ export async function runStart(opts: { port?: number; workDir: string }): Promis
 
   const model = await loadState(workDir);
 
-  const server = createServer(model, config, port);
+  const server = createServer(model, config, port, workDir);
 
   server.listen(port, () => {
     logger.success(`Preview server running at http://localhost:${port}`);

@@ -16,7 +16,7 @@ import {
 import { createServer } from '../preview/server.js';
 import { logger } from '../utils/logger.js';
 import type { Message } from '../llm/provider.js';
-import type { ThemeDefinition } from '../model/types.js';
+import type { SlideModel, ThemeDefinition } from '../model/types.js';
 
 function divider(label: string, color: (s: string) => string): string {
   const width = process.stdout.columns || 80;
@@ -109,9 +109,10 @@ export async function runThemeEdit(opts: { workDir: string; port?: number; force
   }
 
   const port = opts.port ?? config.preview.port;
-  const sampleModel = { ...SAMPLE_SLIDES, theme: themeValue };
+  const baseModel: SlideModel = model.slides.length > 0 ? model : SAMPLE_SLIDES;
+  const previewModel = { ...baseModel, theme: themeValue };
 
-  const server = createServer(sampleModel, config, port);
+  const server = createServer(previewModel, config, port, workDir);
   server.listen(port, () => {
     logger.success(`Preview server running at http://localhost:${port}`);
     logger.dim('Showing sample slides with the current theme.');

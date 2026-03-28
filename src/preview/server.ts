@@ -6,6 +6,7 @@ import { renderPresentation } from '../renderer/html.js';
 let currentModel: SlideModel | null = null;
 let currentConfig: ResolvedConfig | null = null;
 let currentPort = 3000;
+let currentWorkDir: string | undefined;
 
 const clients = new Set<WebSocket>();
 
@@ -25,11 +26,13 @@ export function updateServerModel(model: SlideModel): void {
 export function createServer(
   model: SlideModel,
   config: ResolvedConfig,
-  port: number
+  port: number,
+  workDir?: string
 ): http.Server {
   currentModel = model;
   currentConfig = config;
   currentPort = port;
+  currentWorkDir = workDir;
 
   const server = http.createServer(async (req, res) => {
     if (req.url === '/' || req.url === '/index.html') {
@@ -37,7 +40,7 @@ export function createServer(
         const html = await renderPresentation(
           currentModel!,
           currentConfig!,
-          { hotReload: true, port: currentPort }
+          { hotReload: true, port: currentPort, workDir: currentWorkDir }
         );
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(html);
